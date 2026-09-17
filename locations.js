@@ -1,18 +1,20 @@
 /**
  * 世界中のストリートビュー対応地点データベース
- * 各大陸・各国の有名スポット、美しい街並み、自然、絶景を網羅
+ * 有名観光地から、何気ない生活風景、ローカルな裏路地、大自然の街道まで網羅
  */
 const WORLD_LOCATIONS = [
-  // --- 日本 ---
+  // =========================================================================
+  // 日本 - 観光地からローカルな生活街道まで
+  // =========================================================================
   {
     flag: "🇯🇵",
     country: "日本",
     region: "東京都",
-    city: "港区（芝公園・東京タワー前）",
-    lat: 35.657577,
-    lng: 139.745484,
-    heading: 30,
-    pitch: 10,
+    city: "台東区（谷中・レトロな下町路地）",
+    lat: 35.726500,
+    lng: 139.767200,
+    heading: 180,
+    pitch: 0,
     demoImage: "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=1600&q=80"
   },
   {
@@ -29,30 +31,41 @@ const WORLD_LOCATIONS = [
   {
     flag: "🇯🇵",
     country: "日本",
-    region: "山梨県",
-    city: "南都留郡富士河口湖町（河口湖北岸）",
-    lat: 35.517094,
-    lng: 138.751786,
-    heading: 195,
-    pitch: 8,
-    demoImage: "https://images.unsplash.com/photo-1509023464722-18d996393ca8?auto=format&fit=crop&w=1600&q=80"
-  },
-  {
-    flag: "🇯🇵",
-    country: "日本",
-    region: "岐阜県",
-    city: "大野郡白川村（荻町合掌造り集落）",
-    lat: 36.256241,
-    lng: 136.906663,
-    heading: 140,
+    region: "長野県",
+    city: "木曽郡南木曽町（妻籠宿・旧中山道）",
+    lat: 35.576500,
+    lng: 137.595000,
+    heading: 45,
     pitch: 0,
     demoImage: "https://images.unsplash.com/photo-1528164344705-475426879c0d?auto=format&fit=crop&w=1600&q=80"
   },
   {
     flag: "🇯🇵",
     country: "日本",
+    region: "広島県",
+    city: "尾道市（千光寺山麓の坂道・階段街）",
+    lat: 34.409500,
+    lng: 133.197000,
+    heading: 160,
+    pitch: -5,
+    demoImage: "https://images.unsplash.com/photo-1542051841857-5f90071e7989?auto=format&fit=crop&w=1600&q=80"
+  },
+  {
+    flag: "🇯🇵",
+    country: "日本",
+    region: "北海道",
+    city: "上川郡美瑛町（パッチワークの路・丘陵地帯）",
+    lat: 43.605000,
+    lng: 142.450000,
+    heading: 230,
+    pitch: 0,
+    demoImage: "https://images.unsplash.com/photo-1509023464722-18d996393ca8?auto=format&fit=crop&w=1600&q=80"
+  },
+  {
+    flag: "🇯🇵",
+    country: "日本",
     region: "沖縄県",
-    city: "国頭郡本部町（備瀬フクギ並木）",
+    city: "国頭郡本部町（備瀬フクギ並木・海岸集落）",
     lat: 26.702758,
     lng: 127.879133,
     heading: 270,
@@ -62,441 +75,364 @@ const WORLD_LOCATIONS = [
   {
     flag: "🇯🇵",
     country: "日本",
-    region: "北海道",
-    city: "小樽市（小樽運河遊歩道）",
-    lat: 43.199896,
-    lng: 141.002235,
-    heading: 130,
-    pitch: 0,
+    region: "富山県",
+    city: "高岡市（雨晴海岸・海沿いのローカル街道）",
+    lat: 36.809000,
+    lng: 137.039000,
+    heading: 40,
+    pitch: 5,
     demoImage: "https://images.unsplash.com/photo-1578637387939-43c525550085?auto=format&fit=crop&w=1600&q=80"
   },
-
-  // --- フランス ---
   {
-    flag: "🇫🇷",
-    country: "フランス",
-    region: "イル＝ド＝フランス",
-    city: "パリ（エッフェル塔前・イエナ橋）",
-    lat: 48.858370,
-    lng: 2.294481,
-    heading: 145,
-    pitch: 15,
-    demoImage: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1600&q=80"
-  },
-  {
-    flag: "🇫🇷",
-    country: "フランス",
-    region: "ノルマンディー",
-    city: "マンシュ県（モン・サン＝ミシェル参道橋）",
-    lat: 48.636063,
-    lng: -1.511457,
-    heading: 0,
-    pitch: 10,
-    demoImage: "https://images.unsplash.com/photo-1589182373726-e4f658ab50f0?auto=format&fit=crop&w=1600&q=80"
-  },
-  {
-    flag: "🇫🇷",
-    country: "フランス",
-    region: "プロヴァンス＝アルプ＝コート・ダジュール",
-    city: "ニース（海岸通りプロムナード）",
-    lat: 43.695304,
-    lng: 7.262572,
-    heading: 220,
-    pitch: 2,
-    demoImage: "https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&w=1600&q=80"
-  },
-
-  // --- イタリア ---
-  {
-    flag: "🇮🇹",
-    country: "イタリア",
-    region: "ラツィオ州",
-    city: "ローマ（コロッセオ前・フォーリ・インペリアーリ通り）",
-    lat: 41.890210,
-    lng: 12.492231,
-    heading: 75,
-    pitch: 10,
-    demoImage: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=1600&q=80"
-  },
-  {
-    flag: "🇮🇹",
-    country: "イタリア",
-    region: "ヴェネト州",
-    city: "ヴェネツィア（カナル・グランデ沿岸）",
-    lat: 45.437190,
-    lng: 12.334589,
-    heading: 260,
-    pitch: 5,
-    demoImage: "https://images.unsplash.com/photo-1514890547357-a9ee288728e0?auto=format&fit=crop&w=1600&q=80"
-  },
-  {
-    flag: "🇮🇹",
-    country: "イタリア",
-    region: "トスカーナ州",
-    city: "フィレンツェ（ドゥオーモ前広場）",
-    lat: 43.773145,
-    lng: 11.255960,
-    heading: 110,
-    pitch: 15,
-    demoImage: "https://images.unsplash.com/photo-1543429776-2782fc8e1acd?auto=format&fit=crop&w=1600&q=80"
-  },
-  {
-    flag: "🇮🇹",
-    country: "イタリア",
-    region: "カンパニア州",
-    city: "ポジターノ（アマルフィ海岸断崖道路）",
-    lat: 40.628059,
-    lng: 14.484980,
-    heading: 190,
-    pitch: -5,
-    demoImage: "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?auto=format&fit=crop&w=1600&q=80"
-  },
-
-  // --- イギリス ---
-  {
-    flag: "🇬🇧",
-    country: "イギリス",
-    region: "グレーター・ロンドン",
-    city: "ロンドン（ウェストミンスター橋・ビッグベン前）",
-    lat: 51.500729,
-    lng: -0.124625,
-    heading: 260,
-    pitch: 8,
-    demoImage: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=1600&q=80"
-  },
-  {
-    flag: "🇬🇧",
-    country: "イギリス",
-    region: "スコットランド",
-    city: "エディンバラ（ロイヤル・マイル石畳街）",
-    lat: 55.948595,
-    lng: -3.199913,
-    heading: 240,
-    pitch: 5,
-    demoImage: "https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?auto=format&fit=crop&w=1600&q=80"
-  },
-
-  // --- アメリカ合衆国 ---
-  {
-    flag: "🇺🇸",
-    country: "アメリカ合衆国",
-    region: "ニューヨーク州",
-    city: "ニューヨーク（ブロードウェイ・タイムズスクエア）",
-    lat: 40.758896,
-    lng: -73.985130,
-    heading: 40,
-    pitch: 15,
-    demoImage: "https://images.unsplash.com/photo-1534430480872-3498386e7856?auto=format&fit=crop&w=1600&q=80"
-  },
-  {
-    flag: "🇺🇸",
-    country: "アメリカ合衆国",
-    region: "カリフォルニア州",
-    city: "サンフランシスコ（ゴールデンゲート海峡展望路）",
-    lat: 37.829899,
-    lng: -122.483488,
-    heading: 150,
-    pitch: -2,
-    demoImage: "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=1600&q=80"
-  },
-  {
-    flag: "🇺🇸",
-    country: "アメリカ合衆国",
-    region: "アリゾナ州",
-    city: "グランドキャニオン国立公園（デザートビュー・ドライブ）",
-    lat: 36.059128,
-    lng: -112.109346,
-    heading: 15,
-    pitch: -5,
-    demoImage: "https://images.unsplash.com/photo-1474044159687-1ee9f3a51722?auto=format&fit=crop&w=1600&q=80"
-  },
-  {
-    flag: "🇺🇸",
-    country: "アメリカ合衆国",
-    region: "ハワイ州",
-    city: "ホノルル（カラカウア・アベニュー沿岸）",
-    lat: 21.276550,
-    lng: -157.827254,
+    flag: "🇯🇵",
+    country: "日本",
+    region: "愛媛県",
+    city: "今治市（しまなみ海道・大三島の海沿い小道）",
+    lat: 34.250000,
+    lng: 133.000000,
     heading: 120,
     pitch: 0,
     demoImage: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80"
   },
 
-  // --- スペイン ---
+  // =========================================================================
+  // アメリカ - 荒野の一本道、広大なハイウェイ、地方都市
+  // =========================================================================
   {
-    flag: "🇪🇸",
-    country: "スペイン",
-    region: "カタルーニャ州",
-    city: "バルセロナ（マリョルカ通り・サグラダファミリア前）",
-    lat: 41.403630,
-    lng: 2.174356,
-    heading: 230,
-    pitch: 25,
-    demoImage: "https://images.unsplash.com/photo-1583422409516-2895a77efded?auto=format&fit=crop&w=1600&q=80"
+    flag: "🇺🇸",
+    country: "アメリカ合衆国",
+    region: "アリゾナ州",
+    city: "セリグマン近郊（旧ルート66の荒野街道）",
+    lat: 35.325800,
+    lng: -112.876500,
+    heading: 250,
+    pitch: 2,
+    demoImage: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"
   },
+  {
+    flag: "🇺🇸",
+    country: "アメリカ合衆国",
+    region: "ユタ州",
+    city: "モニュメントバレー近郊（国道163号線直線道路）",
+    lat: 37.101500,
+    lng: -109.990800,
+    heading: 215,
+    pitch: 0,
+    demoImage: "https://images.unsplash.com/photo-1474044159687-1ee9f3a51722?auto=format&fit=crop&w=1600&q=80"
+  },
+  {
+    flag: "🇺🇸",
+    country: "アメリカ合衆国",
+    region: "カリフォルニア州",
+    city: "ビッグサー（太平洋岸パシフィック・コースト・ハイウェイ）",
+    lat: 36.371000,
+    lng: -121.901000,
+    heading: 160,
+    pitch: -5,
+    demoImage: "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=1600&q=80"
+  },
+  {
+    flag: "🇺🇸",
+    country: "アメリカ合衆国",
+    region: "オレゴン州",
+    city: "ポートランド郊外（静かな住宅街の緑道）",
+    lat: 45.515200,
+    lng: -122.678400,
+    heading: 90,
+    pitch: 0,
+    demoImage: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=1600&q=80"
+  },
+  {
+    flag: "🇺🇸",
+    country: "アメリカ合衆国",
+    region: "ハワイ州",
+    city: "ハワイ島（キラウエア溶岩地帯を貫くハイウェイ）",
+    lat: 19.310000,
+    lng: -155.200000,
+    heading: 180,
+    pitch: 0,
+    demoImage: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80"
+  },
+  {
+    flag: "🇺🇸",
+    country: "アメリカ合衆国",
+    region: "ニューヨーク州",
+    city: "ブルックリン（ダンボ・石畳の街角）",
+    lat: 40.703300,
+    lng: -73.989600,
+    heading: 340,
+    pitch: 10,
+    demoImage: "https://images.unsplash.com/photo-1534430480872-3498386e7856?auto=format&fit=crop&w=1600&q=80"
+  },
+
+  // =========================================================================
+  // イギリス - 伝統的な農村、海岸の村、地方の生活路
+  // =========================================================================
+  {
+    flag: "🇬🇧",
+    country: "イギリス",
+    region: "ウィルトシャー",
+    city: "カースル・クーム（コッツウォルズの小さな川沿いの村）",
+    lat: 51.493000,
+    lng: -2.228000,
+    heading: 190,
+    pitch: 0,
+    demoImage: "https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?auto=format&fit=crop&w=1600&q=80"
+  },
+  {
+    flag: "🇬🇧",
+    country: "イギリス",
+    region: "スコットランド",
+    city: "ハイランド地方（スカイ島の荒野と断崖道路）",
+    lat: 57.535000,
+    lng: -6.220000,
+    heading: 140,
+    pitch: 0,
+    demoImage: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=1600&q=80"
+  },
+
+  // =========================================================================
+  // フランス - ワイン畑の道、中世の村、海岸プロムナード
+  // =========================================================================
+  {
+    flag: "🇫🇷",
+    country: "フランス",
+    region: "グラン・テスト",
+    city: "オー＝ラン県（エギスハイムの円形中世小道）",
+    lat: 48.042500,
+    lng: 7.306000,
+    heading: 110,
+    pitch: 0,
+    demoImage: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1600&q=80"
+  },
+  {
+    flag: "🇫🇷",
+    country: "フランス",
+    region: "ブルゴーニュ＝フランシュ＝コンテ",
+    city: "ボーヌ近郊（広大なブドウ畑を抜ける農道）",
+    lat: 47.025000,
+    lng: 4.835000,
+    heading: 260,
+    pitch: 2,
+    demoImage: "https://images.unsplash.com/photo-1589182373726-e4f658ab50f0?auto=format&fit=crop&w=1600&q=80"
+  },
+
+  // =========================================================================
+  // イタリア - トスカーナの並木道、地中海の漁村、田舎街道
+  // =========================================================================
+  {
+    flag: "🇮🇹",
+    country: "イタリア",
+    region: "トスカーナ州",
+    city: "シエーナ県（糸杉が連なる丘陵の田舎道）",
+    lat: 43.080000,
+    lng: 11.620000,
+    heading: 180,
+    pitch: 0,
+    demoImage: "https://images.unsplash.com/photo-1543429776-2782fc8e1acd?auto=format&fit=crop&w=1600&q=80"
+  },
+  {
+    flag: "🇮🇹",
+    country: "イタリア",
+    region: "シチリア州",
+    city: "タオルミーナ山腹（地中海を見下ろすワインディングロード）",
+    lat: 37.852000,
+    lng: 15.285000,
+    heading: 130,
+    pitch: -5,
+    demoImage: "https://images.unsplash.com/photo-1514890547357-a9ee288728e0?auto=format&fit=crop&w=1600&q=80"
+  },
+
+  // =========================================================================
+  // スペイン - アンダルシアの白い村、メセタの大地
+  // =========================================================================
   {
     flag: "🇪🇸",
     country: "スペイン",
     region: "アンダルシア州",
-    city: "セビリア（スペイン広場回廊）",
-    lat: 37.377222,
-    lng: -5.986944,
-    heading: 180,
+    city: "マラガ県（フリヒリアナ・白い壁と石畳の路地）",
+    lat: 36.790000,
+    lng: -3.895000,
+    heading: 350,
     pitch: 5,
     demoImage: "https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?auto=format&fit=crop&w=1600&q=80"
   },
+  {
+    flag: "🇪🇸",
+    country: "スペイン",
+    region: "カスティーリャ＝ラ・マンチャ州",
+    city: "トレド郊外（風車が並ぶ丘陵道路）",
+    lat: 39.460000,
+    lng: -3.610000,
+    heading: 210,
+    pitch: 0,
+    demoImage: "https://images.unsplash.com/photo-1583422409516-2895a77efded?auto=format&fit=crop&w=1600&q=80"
+  },
 
-  // --- ドイツ ---
+  // =========================================================================
+  // ドイツ - 黒い森、バイエルン農村
+  // =========================================================================
   {
     flag: "🇩🇪",
     country: "ドイツ",
-    region: "バイエルン州",
-    city: "シュヴァンガウ（ノイシュヴァンシュタイン城麓）",
-    lat: 47.557574,
-    lng: 10.749800,
-    heading: 170,
-    pitch: 20,
+    region: "バーデン＝ヴュルテンベルク州",
+    city: "シュヴァルツヴァルト（黒い森の木漏れ日街道）",
+    lat: 48.300000,
+    lng: 8.200000,
+    heading: 90,
+    pitch: 0,
     demoImage: "https://images.unsplash.com/photo-1516483638261-f4dbaf036963?auto=format&fit=crop&w=1600&q=80"
   },
-  {
-    flag: "🇩🇪",
-    country: "ドイツ",
-    region: "ベルリン",
-    city: "ミッテ区（パリザー広場・ブランデンブルク門）",
-    lat: 52.516275,
-    lng: 13.377704,
-    heading: 85,
-    pitch: 5,
-    demoImage: "https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=1600&q=80"
-  },
 
-  // --- スイス ---
+  // =========================================================================
+  // スイス - アルプスの峠道、山あいの牧草地
+  // =========================================================================
   {
     flag: "🇨🇭",
     country: "スイス",
     region: "ヴァレー州",
-    city: "ツェルマット（キルヒ通り・マッターホルン遠望）",
-    lat: 45.976543,
-    lng: 7.749117,
-    heading: 215,
-    pitch: 18,
+    city: "フルカ峠（アルプスを越える大パノラマ道路）",
+    lat: 46.572000,
+    lng: 8.415000,
+    heading: 260,
+    pitch: 5,
     demoImage: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1600&q=80"
   },
   {
     flag: "🇨🇭",
     country: "スイス",
     region: "ベルン州",
-    city: "ラウターブルンネン（滝を望む谷底街道）",
-    lat: 46.593506,
-    lng: 7.907914,
-    heading: 160,
+    city: "グリンデルヴァルト（アイガー北壁を仰ぐ山道）",
+    lat: 46.624000,
+    lng: 8.041000,
+    heading: 170,
     pitch: 15,
     demoImage: "https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99?auto=format&fit=crop&w=1600&q=80"
   },
 
-  // --- ノルウェー ---
+  // =========================================================================
+  // 北欧 - 海を渡る橋、フィヨルド、極北の街道
+  // =========================================================================
   {
     flag: "🇳🇴",
     country: "ノルウェー",
-    region: "ヌールラン県",
-    city: "ロフォーテン諸島（レーネ漁村道路）",
-    lat: 67.925574,
-    lng: 13.088339,
-    heading: 310,
+    region: "ムーレ・オ・ロムスダール県",
+    city: "アトランティック・オーシャン・ロード（大西洋架橋道路）",
+    lat: 63.017000,
+    lng: 7.355000,
+    heading: 320,
     pitch: 0,
     demoImage: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1600&q=80"
   },
-
-  // --- オーストラリア ---
   {
-    flag: "🇦🇺",
-    country: "オーストラリア",
-    region: "ニューサウスウェールズ州",
-    city: "シドニー（ベネロング・ポイント前遊歩道）",
-    lat: -33.856784,
-    lng: 151.215297,
-    heading: 30,
-    pitch: 5,
-    demoImage: "https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?auto=format&fit=crop&w=1600&q=80"
+    flag: "🇮🇸",
+    country: "アイスランド",
+    region: "東部地域",
+    city: "リングロード1号線（フィヨルドと黒砂海岸の道）",
+    lat: 64.950000,
+    lng: -14.200000,
+    heading: 60,
+    pitch: 0,
+    demoImage: "https://images.unsplash.com/photo-1504893524553-b855bce32c67?auto=format&fit=crop&w=1600&q=80"
   },
+
+  // =========================================================================
+  // オーストラリア & ニュージーランド - アウトバック、沿岸ハイウェイ
+  // =========================================================================
   {
     flag: "🇦🇺",
     country: "オーストラリア",
-    region: "ビクトリア州",
-    city: "プリンスタウン（グレートオーシャンロード展望台）",
-    lat: -38.665798,
-    lng: 143.104882,
-    heading: 200,
-    pitch: -5,
+    region: "ノーザンテリトリー",
+    city: "スチュアート・ハイウェイ（果てしないアウトバック赤土直線道路）",
+    lat: -24.500000,
+    lng: 133.500000,
+    heading: 0,
+    pitch: 0,
     demoImage: "https://images.unsplash.com/photo-1523482580672-f109ba8cb9be?auto=format&fit=crop&w=1600&q=80"
   },
-
-  // --- ニュージーランド ---
   {
     flag: "🇳🇿",
     country: "ニュージーランド",
-    region: "オタゴ地方",
-    city: "クイーンズタウン（ワカティプ湖岸通り）",
-    lat: -45.031162,
-    lng: 168.662644,
-    heading: 230,
-    pitch: 5,
+    region: "カンタベリー地方",
+    city: "テカポ湖畔（サザンアルプスを望むカントリーロード）",
+    lat: -43.880000,
+    lng: 170.520000,
+    heading: 300,
+    pitch: 2,
     demoImage: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"
   },
 
-  // --- カナダ ---
-  {
-    flag: "🇨🇦",
-    country: "カナダ",
-    region: "アルバータ州",
-    city: "バンフ（レイク・ルイーズ湖畔歩道）",
-    lat: 51.417646,
-    lng: -116.216839,
-    heading: 250,
-    pitch: 10,
-    demoImage: "https://images.unsplash.com/photo-1503614472-8c93d56e92ce?auto=format&fit=crop&w=1600&q=80"
-  },
-
-  // --- ギリシャ ---
-  {
-    flag: "🇬🇷",
-    country: "ギリシャ",
-    region: "南エーゲ地方",
-    city: "サントリーニ島（イアの白壁崖道）",
-    lat: 36.461821,
-    lng: 25.375328,
-    heading: 260,
-    pitch: -5,
-    demoImage: "https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?auto=format&fit=crop&w=1600&q=80"
-  },
-
-  // --- オランダ ---
-  {
-    flag: "🇳🇱",
-    country: "オランダ",
-    region: "北ホラント州",
-    city: "アムステルダム（プリンセン運河沿い石畳）",
-    lat: 52.373056,
-    lng: 4.883333,
-    heading: 160,
-    pitch: 2,
-    demoImage: "https://images.unsplash.com/photo-1512470876302-972faa2aa9a4?auto=format&fit=crop&w=1600&q=80"
-  },
-
-  // --- ブラジル ---
-  {
-    flag: "🇧🇷",
-    country: "ブラジル",
-    region: "リオデジャネイロ州",
-    city: "リオデジャネイロ（アトランティカ大通り）",
-    lat: -22.971964,
-    lng: -43.182565,
-    heading: 80,
-    pitch: 0,
-    demoImage: "https://images.unsplash.com/photo-1483729558449-99ef09a8c325?auto=format&fit=crop&w=1600&q=80"
-  },
-
-  // --- アラブ首長国連邦 ---
-  {
-    flag: "🇦🇪",
-    country: "アラブ首長国連邦",
-    region: "ドバイ首長国",
-    city: "ドバイ（シェイク・モハメド・ビン・ラシッド通り）",
-    lat: 25.197197,
-    lng: 55.274376,
-    heading: 70,
-    pitch: 35,
-    demoImage: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=1600&q=80"
-  },
-
-  // --- タイ ---
-  {
-    flag: "🇹🇭",
-    country: "タイ",
-    region: "バンコク",
-    city: "プラナコーン区（マハラート通り・王宮周辺）",
-    lat: 13.743702,
-    lng: 100.493026,
-    heading: 260,
-    pitch: 5,
-    demoImage: "https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=1600&q=80"
-  },
-
-  // --- シンガポール ---
-  {
-    flag: "🇸🇬",
-    country: "シンガポール",
-    region: "ダウンタウン・コア",
-    city: "マリーナ・ベイ（ウォーターフロント・プロムナード）",
-    lat: 1.286920,
-    lng: 103.854570,
-    heading: 110,
-    pitch: 8,
-    demoImage: "https://images.unsplash.com/photo-1525625293386-3f8f99389edd?auto=format&fit=crop&w=1600&q=80"
-  },
-
-  // --- 台湾 ---
+  // =========================================================================
+  // アジア - 田園の一本道、海沿いの街道、市場路地
+  // =========================================================================
   {
     flag: "🇹🇼",
     country: "台湾",
-    region: "新北市",
-    city: "瑞芳区（九份・豎崎路階段街）",
-    lat: 25.109867,
-    lng: 121.845194,
-    heading: 190,
-    pitch: -10,
+    region: "台東県",
+    city: "池上郷（伯朗大道・電柱のない緑の水田一本道）",
+    lat: 23.118000,
+    lng: 121.218000,
+    heading: 260,
+    pitch: 0,
     demoImage: "https://images.unsplash.com/photo-1508247967583-7d982ea01526?auto=format&fit=crop&w=1600&q=80"
   },
-
-  // --- 韓国 ---
+  {
+    flag: "🇹🇭",
+    country: "タイ",
+    region: "チェンマイ県",
+    city: "メーリム郡（緑豊かな山あいの農村街道）",
+    lat: 18.915000,
+    lng: 98.860000,
+    heading: 190,
+    pitch: 0,
+    demoImage: "https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=1600&q=80"
+  },
   {
     flag: "🇰🇷",
     country: "韓国",
-    region: "ソウル特別市",
-    city: "鐘路区（北村路・韓屋村街道）",
-    lat: 37.582604,
-    lng: 126.983995,
-    heading: 180,
-    pitch: -5,
+    region: "済州特別自治道",
+    city: "西帰浦市（黒い玄武岩と海沿いの風車道路）",
+    lat: 33.250000,
+    lng: 126.550000,
+    heading: 90,
+    pitch: 0,
     demoImage: "https://images.unsplash.com/photo-1538485399081-7191377e8241?auto=format&fit=crop&w=1600&q=80"
   },
 
-  // --- 南アフリカ ---
+  // =========================================================================
+  // アフリカ & 南米 - 砂漠横断路、サバンナ、アンデス山道
+  // =========================================================================
   {
     flag: "🇿🇦",
     country: "南アフリカ",
     region: "西ケープ州",
-    city: "ケープタウン（タフェルベルク・ロード）",
-    lat: -33.957314,
-    lng: 18.403108,
-    heading: 160,
-    pitch: 15,
+    city: "チャップマンズ・ピーク・ドライブ（断崖絶壁の海岸道路）",
+    lat: -34.088000,
+    lng: 18.360000,
+    heading: 190,
+    pitch: -2,
     demoImage: "https://images.unsplash.com/photo-1580618672591-eb180b1a973f?auto=format&fit=crop&w=1600&q=80"
   },
-
-  // --- アイスランド ---
   {
-    flag: "🇮🇸",
-    country: "アイスランド",
-    region: "南部地域",
-    city: "スコゥガル（リングロード1号線）",
-    lat: 63.532052,
-    lng: -19.511380,
-    heading: 0,
-    pitch: 5,
-    demoImage: "https://images.unsplash.com/photo-1504893524553-b855bce32c67?auto=format&fit=crop&w=1600&q=80"
+    flag: "🇦🇷",
+    country: "アルゼンチン",
+    region: "サンタクルス州",
+    city: "ルタ40（パタゴニアの強風吹き抜ける荒野ハイウェイ）",
+    lat: -49.300000,
+    lng: -71.800000,
+    heading: 270,
+    pitch: 0,
+    demoImage: "https://images.unsplash.com/photo-1483729558449-99ef09a8c325?auto=format&fit=crop&w=1600&q=80"
   },
-
-  // --- ペルー ---
   {
-    flag: "🇵🇪",
-    country: "ペルー",
-    region: "クスコ県",
-    city: "ウルバンバ郡（アグアス・カリエンテス山道）",
-    lat: -13.163141,
-    lng: -72.544963,
-    heading: 10,
-    pitch: 5,
+    flag: "🇨🇱",
+    country: "チリ",
+    region: "アントファガスタ州",
+    city: "アタカマ砂漠（世界で最も乾燥した砂漠の直線道路）",
+    lat: -23.500000,
+    lng: -69.800000,
+    heading: 180,
+    pitch: 0,
     demoImage: "https://images.unsplash.com/photo-1526392060635-9d6019884377?auto=format&fit=crop&w=1600&q=80"
   }
 ];

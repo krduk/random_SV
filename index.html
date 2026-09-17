@@ -172,6 +172,17 @@
         </div>
 
         <div class="settings-group">
+          <label for="select-wander-mode">探索スタイル</label>
+          <select id="select-wander-mode" class="settings-select">
+            <option value="wander" selected>未知の路地・ローカル散歩（周辺を自動探索）</option>
+            <option value="spot">厳選スポット固定（定番ポイント）</option>
+          </select>
+          <p class="settings-hint">
+            「ローカル散歩」を選ぶと、登録都市の周辺数キロ内にある何気ない路地や交差点を自動発掘し、常に新しい場所との出会いが楽しめます。
+          </p>
+        </div>
+
+        <div class="settings-group">
           <label>ウィジェットの配置</label>
           <button id="btn-reset-positions" type="button" class="settings-btn-secondary">時計と場所カードの位置を初期化</button>
         </div>

@@ -8,9 +8,11 @@
   // --- 定数 & 状態 ---
   const STORAGE_KEY_API_KEY = 'random_streetview_api_key';
   const STORAGE_KEY_INTERVAL = 'random_streetview_interval';
+  const STORAGE_KEY_WANDER_MODE = 'random_streetview_wander_mode';
 
   let apiKey = localStorage.getItem(STORAGE_KEY_API_KEY) || '';
   let intervalSeconds = parseInt(localStorage.getItem(STORAGE_KEY_INTERVAL) || '60', 10);
+  let wanderMode = localStorage.getItem(STORAGE_KEY_WANDER_MODE) || 'wander';
 
   let isPaused = false;
   let remainingSeconds = intervalSeconds;
@@ -53,6 +55,7 @@
   const btnCloseSettings = document.getElementById('btn-close-settings');
   const inputApiKey = document.getElementById('input-api-key');
   const selectInterval = document.getElementById('select-interval');
+  const selectWanderMode = document.getElementById('select-wander-mode');
   const btnSaveSettings = document.getElementById('btn-save-settings');
   const panoContainer = document.getElementById('pano-container');
   let isGoogleMapsLoaded = false;
@@ -155,10 +158,49 @@
   }
 
   let streetViewService = null;
+  let geocoder = null;
   let skipAttempts = 0;
 
   // =========================================================================
-  // 4. 360°パノラマ（実在ストリートビュー自動検索＆スナップ・ジャイロなし）
+  // 4. 逆ジオコーディング（大まかな住所取得：番地除外）
+  // =========================================================================
+  function reverseGeocodeLocation(lat, lng, defaultFlag) {
+    if (!window.google || !window.google.maps) return;
+    if (!geocoder) geocoder = new google.maps.Geocoder();
+
+    geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+      if (status === 'OK' && results && results[0]) {
+        const components = results[0].address_components;
+        let country = '';
+        let adminArea = '';
+        let locality = '';
+        let sublocality = '';
+
+        for (const c of components) {
+          if (c.types.includes('country')) {
+            country = c.long_name;
+          } else if (c.types.includes('administrative_area_level_1')) {
+            adminArea = c.long_name;
+          } else if (c.types.includes('locality')) {
+            locality = c.long_name;
+          } else if (c.types.includes('sublocality_level_1') || c.types.includes('administrative_area_level_2')) {
+            if (!sublocality) sublocality = c.long_name;
+          }
+        }
+
+        const flagPrefix = defaultFlag ? `${defaultFlag} ` : '';
+        if (country) locCountry.textContent = `${flagPrefix}${country}`;
+
+        const details = [adminArea, locality, sublocality].filter(Boolean);
+        if (details.length > 0) {
+          locDetail.textContent = details.join(' ');
+        }
+      }
+    });
+  }
+
+  // =========================================================================
+  // 5. 360°パノラマ（実在ストリートビュー自動検索＆ランダム散歩）
   // =========================================================================
   function updateInteractivePanorama(loc) {
     if (!window.google || !window.google.maps) return false;
@@ -184,40 +226,76 @@
       });
     }
 
-    // 周囲2.5km以内の「実際に存在する屋外ストリートビュー撮影地点」を自動探索
+    // 探索ターゲット座標の決定
+    let searchLat = loc.lat;
+    let searchLng = loc.lng;
+
+    if (wanderMode === 'wander') {
+      // 登録都市の周辺 0.8km〜5.0km のランダムな方向にオフセット
+      const angle = Math.random() * Math.PI * 2;
+      const distKm = 0.8 + Math.random() * 4.2; // 0.8km〜5.0km
+      const dLat = (distKm / 111) * Math.cos(angle);
+      const dLng = (distKm / (111 * Math.cos((loc.lat * Math.PI) / 180))) * Math.sin(angle);
+      searchLat += dLat;
+      searchLng += dLng;
+    }
+
+    // 周囲の「実際に存在する屋外ストリートビュー撮影地点」を探索
     streetViewService.getPanorama({
-      location: { lat: loc.lat, lng: loc.lng },
-      radius: 2500,
+      location: { lat: searchLat, lng: searchLng },
+      radius: wanderMode === 'wander' ? 3500 : 2500,
       preference: google.maps.StreetViewPreference.NEAREST,
       source: google.maps.StreetViewSource.OUTDOOR
     }, (data, status) => {
       if (status === google.maps.StreetViewStatus.OK && data && data.location) {
-        skipAttempts = 0; // リセット
+        skipAttempts = 0;
 
-        // 実際に撮影された道路・ポイントの正確な座標を記録（地図ピンがズレないように）
+        // 実際に撮影された道路・ポイントの正確な座標を記録
         const actualLat = data.location.latLng.lat();
         const actualLng = data.location.latLng.lng();
         loc.actualLat = actualLat;
         loc.actualLng = actualLng;
 
-        // パノラマIDで直接表示（確実に画像が存在する）
         googlePano.setPano(data.location.pano);
         googlePano.setPov({
           heading: loc.heading !== undefined ? loc.heading : (data.tiles ? data.tiles.centerHeading : 0),
           pitch: loc.pitch !== undefined ? loc.pitch : 0
         });
         panoContainer.classList.add('active');
+
+        // ランダム散歩モード時は、到達した未知の街角の住所を動的取得
+        if (wanderMode === 'wander') {
+          reverseGeocodeLocation(actualLat, actualLng, loc.flag);
+        }
       } else {
-        // ストリートビューが存在しない場所だった場合：
-        // ユーザーに「画像がありません」画面を見せず、自動で次の有効な地点へ即座にスキップ！
-        console.warn('ストリートビュー未対応地点を検知。有効な地点へ自動スキップします:', loc);
-        skipAttempts++;
-        if (skipAttempts < 5) {
-          showNextLocation();
+        // オフセット地点で見つからなかった場合、ベース地点を試す
+        if (wanderMode === 'wander' && (searchLat !== loc.lat || searchLng !== loc.lng)) {
+          streetViewService.getPanorama({
+            location: { lat: loc.lat, lng: loc.lng },
+            radius: 2500,
+            source: google.maps.StreetViewSource.OUTDOOR
+          }, (baseData, baseStatus) => {
+            if (baseStatus === google.maps.StreetViewStatus.OK && baseData && baseData.location) {
+              loc.actualLat = baseData.location.latLng.lat();
+              loc.actualLng = baseData.location.latLng.lng();
+              googlePano.setPano(baseData.location.pano);
+              googlePano.setPov({
+                heading: loc.heading || 0,
+                pitch: loc.pitch || 0
+              });
+              panoContainer.classList.add('active');
+            } else {
+              showNextLocation();
+            }
+          });
         } else {
-          // 連続失敗時はデモ画像を表示
-          panoContainer.classList.remove('active');
-          skipAttempts = 0;
+          skipAttempts++;
+          if (skipAttempts < 5) {
+            showNextLocation();
+          } else {
+            panoContainer.classList.remove('active');
+            skipAttempts = 0;
+          }
         }
       }
     });
@@ -409,6 +487,7 @@
   function openSettingsModal() {
     inputApiKey.value = apiKey;
     selectInterval.value = intervalSeconds.toString();
+    if (selectWanderMode) selectWanderMode.value = wanderMode;
     settingsModal.classList.add('open');
   }
 
@@ -419,9 +498,11 @@
   function saveSettings() {
     apiKey = inputApiKey.value.trim();
     intervalSeconds = parseInt(selectInterval.value, 10) || 60;
+    wanderMode = selectWanderMode ? selectWanderMode.value : 'wander';
 
     localStorage.setItem(STORAGE_KEY_API_KEY, apiKey);
     localStorage.setItem(STORAGE_KEY_INTERVAL, intervalSeconds.toString());
+    localStorage.setItem(STORAGE_KEY_WANDER_MODE, wanderMode);
 
     closeSettingsModal();
     resetTimer();
