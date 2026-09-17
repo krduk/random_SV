@@ -42,6 +42,7 @@
   const iconPause = document.getElementById('icon-pause');
   const iconPlay = document.getElementById('icon-play');
   const btnNext = document.getElementById('btn-next');
+  const btnReload = document.getElementById('btn-reload');
   const btnSettings = document.getElementById('btn-settings');
 
   const mapModal = document.getElementById('map-modal-backdrop');
@@ -727,6 +728,27 @@
       e.stopPropagation();
       showNextLocation();
     });
+
+    // アプリ強制再読み込み（PWAキャッシュバイパス）
+    function forceReloadApp() {
+      const url = new URL(window.location.href);
+      url.searchParams.set('reload', Date.now().toString());
+      window.location.replace(url.toString());
+    }
+
+    if (btnReload) {
+      btnReload.addEventListener('click', (e) => {
+        e.stopPropagation();
+        forceReloadApp();
+      });
+    }
+
+    const btnForceReload = document.getElementById('btn-force-reload');
+    if (btnForceReload) {
+      btnForceReload.addEventListener('click', () => {
+        forceReloadApp();
+      });
+    }
 
     btnSettings.addEventListener('click', (e) => {
       e.stopPropagation();
