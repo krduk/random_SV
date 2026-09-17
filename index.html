@@ -14,7 +14,7 @@
   <!-- Leaflet CSS for Map Overlay -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=3.0">
+  <link rel="stylesheet" href="style.css?v=3.1">
 </head>
 <body>
   <div id="app-container">
@@ -29,6 +29,9 @@
       <img id="view-layer-a" class="view-layer active" alt="Street View" />
       <img id="view-layer-b" class="view-layer" alt="Street View" />
     </div>
+
+    <!-- シーン切り替え時のフェードイン/アウト カーテン -->
+    <div id="scene-curtain" class="scene-curtain"></div>
 
     <!-- 明度・視認性補正オーバーレイ -->
     <div class="vignette-overlay"></div>
@@ -78,6 +81,14 @@
             </svg>
           </button>
 
+          <!-- 保存した場所一覧（お気に入り） -->
+          <button id="btn-open-favorites" class="icon-btn fav-list-btn" title="保存した場所一覧" aria-label="保存した場所一覧">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+            </svg>
+            <span id="fav-badge" class="fav-badge" style="display:none;">0</span>
+          </button>
+
           <!-- アプリ再読み込み (リロード) -->
           <button id="btn-reload" class="icon-btn" title="最新状態に再読み込み" aria-label="再読み込み">
             <svg viewBox="0 0 24 24">
@@ -117,6 +128,13 @@
               地図を開いて位置を確認
             </span>
           </div>
+
+          <!-- お気に入り（保存）ボタン -->
+          <button id="btn-fav-toggle" class="fav-toggle-btn" title="この場所をお気に入りに保存" aria-label="この場所をお気に入りに保存">
+            <svg id="icon-fav-heart" class="icon-heart" viewBox="0 0 24 24">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -139,12 +157,20 @@
 
         <div class="map-modal-footer">
           <span id="modal-coords" class="coords-text">35.6586° N, 139.7454° E</span>
-          <a id="btn-open-google-maps" href="#" target="_blank" rel="noopener noreferrer" class="open-gmaps-btn">
-            <svg viewBox="0 0 24 24">
-              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-            </svg>
-            Googleマップで開く
-          </a>
+          <div class="map-modal-actions">
+            <button id="btn-modal-fav" class="modal-fav-btn" type="button" title="この場所を保存">
+              <svg class="icon-heart" viewBox="0 0 24 24">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+              <span id="modal-fav-text">保存する</span>
+            </button>
+            <a id="btn-open-google-maps" href="#" target="_blank" rel="noopener noreferrer" class="open-gmaps-btn">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+              </svg>
+              Googleマップ
+            </a>
+          </div>
         </div>
       </div>
     </div>
@@ -163,18 +189,17 @@
           <label for="input-api-key">Google Maps API キー (任意)</label>
           <input type="password" id="input-api-key" class="settings-input" placeholder="AIzaSy..." autocomplete="off">
           <p class="settings-hint">
-            設定すると360度上下左右にぐりぐり見回せるリアルタイムストリートビューが有効になります（要: Maps JavaScript API有効化）。未設定でも厳選世界名所デモが動作します。
+            APIキーを入力すると、実際のGoogleストリートビュー（360度パノラマ・屋外道路探索）が表示されます。空欄時は厳選された美しい風景写真（デモモード）が表示されます。
           </p>
         </div>
 
         <div class="settings-group">
           <label for="select-interval">切り替え間隔</label>
           <select id="select-interval" class="settings-select">
-            <option value="30">30 秒</option>
-            <option value="60" selected>1 分 (標準)</option>
-            <option value="120">2 分</option>
-            <option value="180">3 分</option>
-            <option value="300">5 分</option>
+            <option value="30">30秒</option>
+            <option value="60" selected>1分（おすすめ）</option>
+            <option value="120">2分</option>
+            <option value="300">5分</option>
           </select>
         </div>
 
@@ -203,6 +228,33 @@
       </div>
     </div>
 
+    <!-- 保存した場所（お気に入り）モーダル -->
+    <div id="favorites-modal-backdrop" class="modal-backdrop">
+      <div class="favorites-modal-card">
+        <div class="favorites-header">
+          <div class="favorites-title-wrap">
+            <h3>⭐️ 保存した場所</h3>
+            <span id="fav-modal-count" class="fav-modal-count">0件</span>
+          </div>
+          <button id="btn-close-favorites" class="close-btn" aria-label="閉じる">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+
+        <!-- お気に入り一覧スクロール領域 -->
+        <div id="favorites-list" class="favorites-list">
+          <!-- JSで動的生成 -->
+        </div>
+
+        <div class="favorites-footer">
+          <button id="btn-clear-all-favorites" class="btn-clear-all" type="button">すべて削除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- トースト通知 -->
+    <div id="toast-notification" class="toast-notification" role="status" aria-live="polite"></div>
+
   </div>
 
   <!-- Leaflet JS -->
@@ -210,6 +262,6 @@
   <!-- World Locations Data -->
   <script src="locations.js?v=3.0"></script>
   <!-- Main Application Logic -->
-  <script src="app.js?v=3.0"></script>
+  <script src="app.js?v=3.1"></script>
 </body>
 </html>

@@ -96,6 +96,25 @@ html, body {
   pointer-events: auto;
 }
 
+/* --- シーン切り替えトランジション用フェードカーテン --- */
+.scene-curtain {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 6;
+  transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.scene-curtain.fade-out {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* 暗めのグラデーションオーバーレイで文字と時計の視認性を担保 */
 .vignette-overlay {
   position: absolute;
@@ -336,6 +355,11 @@ html, body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  transition: opacity 0.35s ease;
+}
+
+.location-info.fading {
+  opacity: 0;
 }
 
 .location-country {
@@ -653,6 +677,375 @@ html, body {
 
 .settings-btn-save:active {
   background: #1d4ed8;
+}
+
+/* ==========================================================================
+   お気に入り（保存）機能 スタイル
+   ========================================================================== */
+
+/* 場所カード内のお気に入りボタン */
+.fav-toggle-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 6px;
+  flex-shrink: 0;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  color: #ffffff;
+}
+
+.fav-toggle-btn:active {
+  transform: scale(0.86);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.fav-toggle-btn .icon-heart {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2;
+  transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), stroke 0.2s ease, fill 0.2s ease;
+}
+
+/* 保存済み状態 */
+.fav-toggle-btn.is-favorite {
+  background: rgba(255, 59, 92, 0.24);
+  border-color: rgba(255, 59, 92, 0.55);
+}
+
+.fav-toggle-btn.is-favorite .icon-heart {
+  fill: #ff3b5c;
+  stroke: #ff3b5c;
+  animation: heartPop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes heartPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.4); }
+  75% { transform: scale(0.88); }
+  100% { transform: scale(1); }
+}
+
+/* 右上のお気に入り一覧ボタン & バッジ */
+.fav-list-btn {
+  position: relative;
+}
+
+.fav-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  background: #ff3b5c;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 17px;
+  height: 17px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid #0d1117;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+  animation: badgePop 0.3s ease;
+}
+
+@keyframes badgePop {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* 地図モーダルフッター内のお気に入りアクション */
+.map-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.modal-fav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-fav-btn:active {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.modal-fav-btn.is-favorite {
+  background: rgba(255, 59, 92, 0.2);
+  border-color: rgba(255, 59, 92, 0.5);
+  color: #ff859a;
+}
+
+.modal-fav-btn .icon-heart {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.modal-fav-btn.is-favorite .icon-heart {
+  fill: #ff3b5c;
+  stroke: #ff3b5c;
+}
+
+/* 保存した場所モーダルカード */
+.favorites-modal-card {
+  background: rgba(18, 24, 38, 0.94);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+  border-radius: 24px;
+  width: 92%;
+  max-width: 480px;
+  max-height: 82vh;
+  max-height: 82dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.favorites-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.favorites-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.favorites-title-wrap h3 {
+  font-size: 17px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.fav-modal-count {
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 2px 8px;
+  border-radius: 10px;
+  color: #93c5fd;
+}
+
+.favorites-list {
+  padding: 14px 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.fav-item {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  transition: background 0.2s ease;
+}
+
+.fav-item:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.fav-item-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.fav-item-place {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fav-item-sub {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.fav-item-date {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 3px;
+}
+
+.fav-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.fav-btn-view {
+  background: var(--accent-blue);
+  color: #ffffff;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 11px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.fav-btn-view:active {
+  opacity: 0.85;
+  transform: scale(0.95);
+}
+
+.fav-btn-gmaps {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 6px 8px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.fav-btn-gmaps svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.fav-btn-delete {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  border: none;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.fav-btn-delete:active {
+  color: #ff5252;
+}
+
+.fav-btn-delete svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.fav-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.fav-empty-icon {
+  font-size: 36px;
+  margin-bottom: 10px;
+  display: block;
+}
+
+.favorites-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.btn-clear-all {
+  background: transparent;
+  border: none;
+  color: rgba(255, 82, 82, 0.85);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.btn-clear-all:active {
+  background: rgba(255, 82, 82, 0.15);
+}
+
+/* トースト通知 */
+.toast-notification {
+  position: fixed;
+  bottom: calc(var(--safe-bottom) + 86px);
+  left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: rgba(20, 26, 40, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast-notification.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 /* ==========================================================================
