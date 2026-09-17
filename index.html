@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RandomView">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <title>Random StreetView - 世界の街角</title>
+
+  <!-- Leaflet CSS for Map Overlay -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app-container">
+    <!-- プログレスバー（1分間の進捗インジケーター） -->
+    <div class="progress-bar-container">
+      <div id="progress-bar-fill" class="progress-bar-fill"></div>
+    </div>
+
+    <!-- ストリートビュー画像背景層（クロスフェード用2枚構造） -->
+    <div id="view-container" class="view-container" title="画面をタップすると地図が開きます">
+      <img id="view-layer-a" class="view-layer active" alt="Street View" />
+      <img id="view-layer-b" class="view-layer" alt="Street View" />
+    </div>
+
+    <!-- 明度・視認性補正オーバーレイ -->
+    <div class="vignette-overlay"></div>
+
+    <!-- UIオーバーレイ層 -->
+    <div class="ui-overlay">
+      <!-- 上部バー：針時計 ＆ 操作ボタン -->
+      <div class="top-bar">
+        <!-- アナログ針時計（小さめ・秒針付き） -->
+        <div id="clock-widget" class="clock-widget" title="現在時刻">
+          <svg class="clock-svg" viewBox="0 0 100 100">
+            <!-- 文字盤 -->
+            <circle class="clock-face" cx="50" cy="50" r="46"></circle>
+            
+            <!-- 目盛り（JSで動的生成 または SVG静的配置） -->
+            <g id="clock-ticks"></g>
+
+            <!-- 時針 (12時向き初期) -->
+            <line id="hour-hand" class="clock-hand-hour" x1="50" y1="50" x2="50" y2="30"></line>
+            <!-- 分針 (12時向き初期) -->
+            <line id="minute-hand" class="clock-hand-minute" x1="50" y1="50" x2="50" y2="20"></line>
+            <!-- 秒針（アクセントレッド・12時向き初期＋お尻カウンターウェイト） -->
+            <line id="second-hand" class="clock-hand-second" x1="50" y1="58" x2="50" y2="16"></line>
+            
+            <!-- センター留めピン -->
+            <circle class="clock-center-dot" cx="50" cy="50" r="3.2"></circle>
+            <circle class="clock-center-inner" cx="50" cy="50" r="1.5"></circle>
+          </svg>
+        </div>
+
+        <!-- 右上コントロール -->
+        <div class="top-controls">
+          <!-- 一時停止 / 再生 -->
+          <button id="btn-toggle-play" class="icon-btn" title="一時停止/再開" aria-label="一時停止/再開">
+            <svg id="icon-pause" viewBox="0 0 24 24">
+              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+            </svg>
+            <svg id="icon-play" viewBox="0 0 24 24" style="display:none;">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </button>
+
+          <!-- 次の場所へスキップ -->
+          <button id="btn-next" class="icon-btn" title="次の場所へ" aria-label="次の場所へ">
+            <svg viewBox="0 0 24 24">
+              <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+            </svg>
+          </button>
+
+          <!-- 設定ボタン -->
+          <button id="btn-settings" class="icon-btn" title="設定" aria-label="設定">
+            <svg viewBox="0 0 24 24">
+              <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.488.488 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 下部バー：住所カード ＆ タップヒント -->
+      <div class="bottom-bar">
+        <div class="screen-tap-guide">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+          </svg>
+          画面タップでこの場所の地図を表示
+        </div>
+
+        <div id="location-card" class="location-card" title="タップして地図を開く">
+          <div class="pin-icon-wrap">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
+          </div>
+          <div class="location-info">
+            <span id="loc-country" class="location-country">国名</span>
+            <span id="loc-detail" class="location-detail">都道府県 / 都市名</span>
+            <span class="tap-hint">
+              <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+              地図を開いて位置を確認
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 地図モーダル（画面タップで表示） -->
+    <div id="map-modal-backdrop" class="modal-backdrop">
+      <div class="map-modal-card">
+        <div class="map-modal-header">
+          <div class="map-modal-title">
+            <h3 id="modal-place-title">地点の地図</h3>
+            <p id="modal-place-sub">現在表示中のストリートビューの位置</p>
+          </div>
+          <button id="btn-close-map" class="close-btn" aria-label="地図を閉じる">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+
+        <!-- Leaflet Map Container -->
+        <div id="leaflet-map"></div>
+
+        <div class="map-modal-footer">
+          <span id="modal-coords" class="coords-text">35.6586° N, 139.7454° E</span>
+          <a id="btn-open-google-maps" href="#" target="_blank" rel="noopener noreferrer" class="open-gmaps-btn">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
+            Googleマップで開く
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 設定モーダル -->
+    <div id="settings-modal-backdrop" class="modal-backdrop">
+      <div class="settings-modal-card">
+        <div class="settings-header">
+          <h3>設定</h3>
+          <button id="btn-close-settings" class="close-btn" aria-label="設定を閉じる">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+
+        <div class="settings-group">
+          <label for="input-api-key">Google Maps API キー (任意)</label>
+          <input type="password" id="input-api-key" class="settings-input" placeholder="AIzaSy..." autocomplete="off">
+          <p class="settings-hint">
+            設定するとGoogle Street View Static APIから最新の高画質ストリートビューが取得されます。未設定でも厳選された世界名所デモが動作します。
+          </p>
+        </div>
+
+        <div class="settings-group">
+          <label for="select-interval">切り替え間隔</label>
+          <select id="select-interval" class="settings-select">
+            <option value="30">30 秒</option>
+            <option value="60" selected>1 分 (標準)</option>
+            <option value="120">2 分</option>
+            <option value="180">3 分</option>
+            <option value="300">5 分</option>
+          </select>
+        </div>
+
+        <button id="btn-save-settings" class="settings-btn-save">設定を保存する</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- World Locations Data -->
+  <script src="locations.js"></script>
+  <!-- Main Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
