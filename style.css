@@ -11,11 +11,11 @@
 
   --accent-color: #ff5252;
   --accent-blue: #3b82f6;
-  --glass-bg: rgba(20, 24, 33, 0.65);
-  --glass-border: rgba(255, 255, 255, 0.18);
-  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --glass-bg: rgba(10, 15, 25, 0.36);
+  --glass-border: rgba(255, 255, 255, 0.22);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
   --text-main: #ffffff;
-  --text-sub: rgba(255, 255, 255, 0.78);
+  --text-sub: rgba(255, 255, 255, 0.82);
   --clock-size: 78px;
 }
 
@@ -149,12 +149,18 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  z-index: 15;
 }
 
-.clock-widget:active {
-  transform: scale(0.96);
+.clock-widget.is-dragging {
+  cursor: grabbing;
+  transform: scale(1.08);
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.6);
+  transition: none !important;
+  z-index: 60 !important;
 }
 
 .clock-svg {
@@ -167,27 +173,31 @@ html, body {
 }
 
 .clock-tick {
-  stroke: rgba(255, 255, 255, 0.4);
+  stroke: rgba(255, 255, 255, 0.5);
   stroke-width: 1.5;
   stroke-linecap: round;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
 }
 
 .clock-tick.major {
-  stroke: rgba(255, 255, 255, 0.85);
+  stroke: rgba(255, 255, 255, 0.95);
   stroke-width: 2.2;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
 }
 
 .clock-hand-hour {
   stroke: #ffffff;
   stroke-width: 3.2;
   stroke-linecap: round;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
   transition: transform 0.05s ease;
 }
 
 .clock-hand-minute {
-  stroke: rgba(255, 255, 255, 0.9);
+  stroke: rgba(255, 255, 255, 0.95);
   stroke-width: 2.2;
   stroke-linecap: round;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
   transition: transform 0.05s ease;
 }
 
@@ -195,7 +205,7 @@ html, body {
   stroke: var(--accent-color);
   stroke-width: 1.4;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 2px rgba(255, 82, 82, 0.6));
+  filter: drop-shadow(0 1px 3px rgba(255, 82, 82, 0.8));
   transition: transform 0.05s cubic-bezier(0.4, 2.08, 0.55, 0.44);
 }
 
@@ -204,7 +214,7 @@ html, body {
 }
 
 .clock-center-inner {
-  fill: #1a1a24;
+  fill: #0f172a;
 }
 
 /* 右上ボタングループ（一時停止、次へ、設定） */
@@ -254,6 +264,7 @@ html, body {
 
 .location-card {
   pointer-events: auto;
+  position: relative;
   background: var(--glass-bg);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -264,14 +275,19 @@ html, body {
   display: flex;
   align-items: center;
   gap: 12px;
-  cursor: pointer;
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease;
+  cursor: grab;
+  touch-action: none;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease, box-shadow 0.2s ease;
   max-width: 100%;
+  z-index: 15;
 }
 
-.location-card:active {
-  transform: scale(0.97);
-  background: rgba(30, 36, 50, 0.85);
+.location-card.is-dragging {
+  cursor: grabbing;
+  transform: scale(1.04);
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.6);
+  transition: none !important;
+  z-index: 60 !important;
 }
 
 .pin-icon-wrap {
@@ -307,6 +323,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
 }
 
 .location-detail {
@@ -317,6 +334,7 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   margin-top: 1px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
 }
 
 .tap-hint {
@@ -576,6 +594,24 @@ html, body {
   font-size: 14px;
   color: #fff;
   outline: none;
+}
+
+.settings-btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.settings-btn-secondary:active {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(0.98);
 }
 
 .settings-btn-save {

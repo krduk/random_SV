@@ -329,16 +329,162 @@
   }
 
   // =========================================================================
-  // 8. イベントリスナー登録
+  // 8. ドラッグ＆ドロップ機能（時計・場所表示カード）
   // =========================================================================
-  function initEvents() {
-    // 画面タップで地図を開く（背景・画像領域または住所カード）
-    viewContainer.addEventListener('click', (e) => {
-      openMapModal();
+  const draggableElements = [];
+
+  function makeDraggable(element, storageKey, options = {}) {
+    let startX = 0;
+    let startY = 0;
+    let initialLeft = 0;
+    let initialTop = 0;
+    let isDragging = false;
+    let lastTapTime = 0;
+
+    function applyRatioPosition(ratioX, ratioY) {
+      const width = element.offsetWidth || 80;
+      const height = element.offsetHeight || 80;
+      const minX = 8;
+      const maxX = Math.max(minX, window.innerWidth - width - 8);
+      const minY = 8;
+      const maxY = Math.max(minY, window.innerHeight - height - 8);
+
+      let targetX = window.innerWidth * ratioX;
+      let targetY = window.innerHeight * ratioY;
+
+      targetX = Math.max(minX, Math.min(maxX, targetX));
+      targetY = Math.max(minY, Math.min(maxY, targetY));
+
+      element.style.position = 'fixed';
+      element.style.left = `${targetX}px`;
+      element.style.top = `${targetY}px`;
+      element.style.bottom = 'auto';
+      element.style.right = 'auto';
+      element.style.margin = '0';
+    }
+
+    function resetToDefault() {
+      localStorage.removeItem(storageKey);
+      element.style.position = '';
+      element.style.left = '';
+      element.style.top = '';
+      element.style.bottom = '';
+      element.style.right = '';
+      element.style.margin = '';
+    }
+
+    function restorePosition() {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        try {
+          const { ratioX, ratioY } = JSON.parse(saved);
+          applyRatioPosition(ratioX, ratioY);
+          return;
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      resetToDefault();
+    }
+
+    element.addEventListener('pointerdown', (e) => {
+      // 内部のリンクやボタンのタップは邪魔しない
+      if (e.target.closest('button') || e.target.closest('a')) return;
+
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = element.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+      isDragging = false;
+
+      element.setPointerCapture(e.pointerId);
     });
 
-    locCard.addEventListener('click', (e) => {
-      e.stopPropagation();
+    element.addEventListener('pointermove', (e) => {
+      if (!element.hasPointerCapture(e.pointerId)) return;
+
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      if (!isDragging && Math.hypot(dx, dy) > 5) {
+        isDragging = true;
+        element.classList.add('is-dragging');
+      }
+
+      if (isDragging) {
+        const width = element.offsetWidth;
+        const height = element.offsetHeight;
+        const minX = 8;
+        const maxX = Math.max(minX, window.innerWidth - width - 8);
+        const minY = 8;
+        const maxY = Math.max(minY, window.innerHeight - height - 8);
+
+        let targetX = initialLeft + dx;
+        let targetY = initialTop + dy;
+
+        targetX = Math.max(minX, Math.min(maxX, targetX));
+        targetY = Math.max(minY, Math.min(maxY, targetY));
+
+        element.style.position = 'fixed';
+        element.style.left = `${targetX}px`;
+        element.style.top = `${targetY}px`;
+        element.style.bottom = 'auto';
+        element.style.right = 'auto';
+        element.style.margin = '0';
+      }
+    });
+
+    element.addEventListener('pointerup', (e) => {
+      if (element.hasPointerCapture(e.pointerId)) {
+        element.releasePointerCapture(e.pointerId);
+      }
+
+      element.classList.remove('is-dragging');
+
+      if (isDragging) {
+        const rect = element.getBoundingClientRect();
+        const ratioX = rect.left / window.innerWidth;
+        const ratioY = rect.top / window.innerHeight;
+        localStorage.setItem(storageKey, JSON.stringify({ ratioX, ratioY }));
+        isDragging = false;
+        return;
+      }
+
+      // 単なるタップだった場合
+      const now = Date.now();
+      if (now - lastTapTime < 320) {
+        // ダブルタップで位置を初期位置にリセット
+        resetToDefault();
+        lastTapTime = 0;
+        return;
+      }
+      lastTapTime = now;
+
+      if (options.onClick) {
+        options.onClick(e);
+      }
+    });
+
+    element.addEventListener('pointercancel', (e) => {
+      if (element.hasPointerCapture(e.pointerId)) {
+        element.releasePointerCapture(e.pointerId);
+      }
+      element.classList.remove('is-dragging');
+      isDragging = false;
+    });
+
+    draggableElements.push({ element, storageKey, applyRatioPosition, resetToDefault });
+    restorePosition();
+  }
+
+  // =========================================================================
+  // 9. イベントリスナー登録
+  // =========================================================================
+  function initEvents() {
+    // 画面タップで地図を開く（背景画像領域）
+    viewContainer.addEventListener('click', () => {
       openMapModal();
     });
 
@@ -358,13 +504,6 @@
       openSettingsModal();
     });
 
-    // 時計タップでも心地よい反応
-    const clockWidget = document.getElementById('clock-widget');
-    clockWidget.addEventListener('click', (e) => {
-      e.stopPropagation();
-      // 時計タップ時は控えめに時刻をアラートまたはトグル表示も可能
-    });
-
     // 地図モーダル閉じる
     btnCloseMap.addEventListener('click', closeMapModal);
     mapModal.addEventListener('click', (e) => {
@@ -382,21 +521,67 @@
     });
     btnSaveSettings.addEventListener('click', saveSettings);
 
-    // 画面向き変更（縦置き・横置き切り替え時）のマップ再計算
+    // ウィジェット位置初期化ボタン
+    const btnResetPositions = document.getElementById('btn-reset-positions');
+    if (btnResetPositions) {
+      btnResetPositions.addEventListener('click', () => {
+        draggableElements.forEach(item => item.resetToDefault());
+        closeSettingsModal();
+      });
+    }
+
+    // 時計ウィジェット & 場所カードをドラッグ可能に
+    const clockWidget = document.getElementById('clock-widget');
+    makeDraggable(clockWidget, 'random_sv_clock_pos', {
+      onClick: (e) => {
+        e.stopPropagation();
+      }
+    });
+
+    makeDraggable(locCard, 'random_sv_loc_pos', {
+      onClick: (e) => {
+        e.stopPropagation();
+        openMapModal();
+      }
+    });
+
+    // 画面向き変更・リサイズ時の位置再計算
     window.addEventListener('resize', () => {
+      draggableElements.forEach(item => {
+        const saved = localStorage.getItem(item.storageKey);
+        if (saved) {
+          try {
+            const { ratioX, ratioY } = JSON.parse(saved);
+            item.applyRatioPosition(ratioX, ratioY);
+          } catch (err) {}
+        }
+      });
+
       if (leafletMap && mapModal.classList.contains('open')) {
         setTimeout(() => leafletMap.invalidateSize(), 200);
       }
     });
+
     window.addEventListener('orientationchange', () => {
-      if (leafletMap && mapModal.classList.contains('open')) {
-        setTimeout(() => leafletMap.invalidateSize(), 300);
-      }
+      setTimeout(() => {
+        draggableElements.forEach(item => {
+          const saved = localStorage.getItem(item.storageKey);
+          if (saved) {
+            try {
+              const { ratioX, ratioY } = JSON.parse(saved);
+              item.applyRatioPosition(ratioX, ratioY);
+            } catch (err) {}
+          }
+        });
+        if (leafletMap && mapModal.classList.contains('open')) {
+          leafletMap.invalidateSize();
+        }
+      }, 300);
     });
   }
 
   // =========================================================================
-  // 9. 初期化
+  // 10. 初期化
   // =========================================================================
   function init() {
     initClockTicks();
