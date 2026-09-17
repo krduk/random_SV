@@ -23,8 +23,9 @@
       <div id="progress-bar-fill" class="progress-bar-fill"></div>
     </div>
 
-    <!-- ストリートビュー画像背景層（クロスフェード用2枚構造） -->
+    <!-- ストリートビュー表示層（360度パノラマ ＆ デモ用クロスフェード画像） -->
     <div id="view-container" class="view-container" title="画面をタップすると地図が開きます">
+      <div id="pano-container" class="pano-container"></div>
       <img id="view-layer-a" class="view-layer active" alt="Street View" />
       <img id="view-layer-b" class="view-layer" alt="Street View" />
     </div>
@@ -155,7 +156,7 @@
           <label for="input-api-key">Google Maps API キー (任意)</label>
           <input type="password" id="input-api-key" class="settings-input" placeholder="AIzaSy..." autocomplete="off">
           <p class="settings-hint">
-            設定するとGoogle Street View Static APIから最新の高画質ストリートビューが取得されます。未設定でも厳選された世界名所デモが動作します。
+            設定すると360度上下左右にぐりぐり見回せるリアルタイムストリートビューが有効になります（要: Maps JavaScript API有効化）。未設定でも厳選世界名所デモが動作します。
           </p>
         </div>
 
