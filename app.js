@@ -154,49 +154,73 @@
     document.head.appendChild(script);
   }
 
+  let streetViewService = null;
+  let skipAttempts = 0;
+
   // =========================================================================
-  // 4. 360°パノラマ（ぐりぐり可能・ジャイロなし・余計なUIなし）
+  // 4. 360°パノラマ（実在ストリートビュー自動検索＆スナップ・ジャイロなし）
   // =========================================================================
   function updateInteractivePanorama(loc) {
     if (!window.google || !window.google.maps) return false;
 
-    const panoOptions = {
-      position: { lat: loc.lat, lng: loc.lng },
-      pov: {
-        heading: loc.heading !== undefined ? loc.heading : 0,
-        pitch: loc.pitch !== undefined ? loc.pitch : 0
-      },
-      zoom: 1,
-      // 移動ボタンやコンパスなどのUIをすべて排除
-      disableDefaultUI: true,
-      linksControl: false,          // 道路の矢印非表示
-      panControl: false,            // コンパス非表示
-      zoomControl: false,           // ズームボタン非表示
-      addressControl: false,        // 住所バー非表示
-      fullscreenControl: false,     // 全画面ボタン非表示
-      motionTracking: false,        // ★ジャイロ無効化（指の操作のみ）
-      motionTrackingControl: false, // ★ジャイロ切替ボタン非表示
-      clickToGo: false,             // タップで別地点へ移動するのを防止
-      showRoadLabels: false,        // 道路名非表示
-      visible: true
-    };
+    if (!streetViewService) {
+      streetViewService = new google.maps.StreetViewService();
+    }
 
     if (!googlePano) {
-      googlePano = new google.maps.StreetViewPanorama(panoContainer, panoOptions);
-
-      googlePano.addListener('status_changed', () => {
-        const status = googlePano.getStatus();
-        if (status === google.maps.StreetViewStatus.OK) {
-          panoContainer.classList.add('active');
-        } else {
-          console.warn('Street View not found for position, fallback to photo');
-          panoContainer.classList.remove('active');
-        }
+      googlePano = new google.maps.StreetViewPanorama(panoContainer, {
+        zoom: 1,
+        disableDefaultUI: true,
+        linksControl: false,          // 道路の矢印非表示
+        panControl: false,            // コンパス非表示
+        zoomControl: false,           // ズームボタン非表示
+        addressControl: false,        // 住所バー非表示
+        fullscreenControl: false,     // 全画面ボタン非表示
+        motionTracking: false,        // ★ジャイロ無効化（指の操作のみ）
+        motionTrackingControl: false, // ★ジャイロ切替ボタン非表示
+        clickToGo: false,             // タップで別地点へ移動するのを防止
+        showRoadLabels: false,        // 道路名非表示
+        visible: true
       });
-    } else {
-      googlePano.setOptions(panoOptions);
-      panoContainer.classList.add('active');
     }
+
+    // 周囲2.5km以内の「実際に存在する屋外ストリートビュー撮影地点」を自動探索
+    streetViewService.getPanorama({
+      location: { lat: loc.lat, lng: loc.lng },
+      radius: 2500,
+      preference: google.maps.StreetViewPreference.NEAREST,
+      source: google.maps.StreetViewSource.OUTDOOR
+    }, (data, status) => {
+      if (status === google.maps.StreetViewStatus.OK && data && data.location) {
+        skipAttempts = 0; // リセット
+
+        // 実際に撮影された道路・ポイントの正確な座標を記録（地図ピンがズレないように）
+        const actualLat = data.location.latLng.lat();
+        const actualLng = data.location.latLng.lng();
+        loc.actualLat = actualLat;
+        loc.actualLng = actualLng;
+
+        // パノラマIDで直接表示（確実に画像が存在する）
+        googlePano.setPano(data.location.pano);
+        googlePano.setPov({
+          heading: loc.heading !== undefined ? loc.heading : (data.tiles ? data.tiles.centerHeading : 0),
+          pitch: loc.pitch !== undefined ? loc.pitch : 0
+        });
+        panoContainer.classList.add('active');
+      } else {
+        // ストリートビューが存在しない場所だった場合：
+        // ユーザーに「画像がありません」画面を見せず、自動で次の有効な地点へ即座にスキップ！
+        console.warn('ストリートビュー未対応地点を検知。有効な地点へ自動スキップします:', loc);
+        skipAttempts++;
+        if (skipAttempts < 5) {
+          showNextLocation();
+        } else {
+          // 連続失敗時はデモ画像を表示
+          panoContainer.classList.remove('active');
+          skipAttempts = 0;
+        }
+      }
+    });
 
     return true;
   }
@@ -309,20 +333,22 @@
     const prevPausedState = isPaused;
     isPaused = true;
 
+    // 実際に撮影されたパノラマ座標（実在地点）があればそちらを優先
+    const lat = currentLocation.actualLat !== undefined ? currentLocation.actualLat : currentLocation.lat;
+    const lng = currentLocation.actualLng !== undefined ? currentLocation.actualLng : currentLocation.lng;
+
     modalPlaceTitle.textContent = `${currentLocation.country}・${currentLocation.region}`;
     modalPlaceSub.textContent = currentLocation.city;
-    modalCoords.textContent = `${currentLocation.lat.toFixed(5)}°, ${currentLocation.lng.toFixed(5)}°`;
+    modalCoords.textContent = `${lat.toFixed(5)}°, ${lng.toFixed(5)}°`;
 
     // Googleマップ直接リンク
-    const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${currentLocation.lat},${currentLocation.lng}`;
+    const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
     btnOpenGoogleMaps.href = gmapsUrl;
 
     mapModal.classList.add('open');
 
     // Leafletマップの初期化または更新
     setTimeout(() => {
-      const lat = currentLocation.lat;
-      const lng = currentLocation.lng;
 
       // モダンなSVGマップピンアイコン
       const pinIcon = L.divIcon({
