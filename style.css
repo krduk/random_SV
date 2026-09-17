@@ -137,7 +137,9 @@ html, body {
 /* --- アナログ針時計 --- */
 .clock-widget {
   pointer-events: auto;
-  position: relative;
+  position: fixed;
+  top: calc(var(--safe-top) + 12px);
+  left: calc(var(--safe-left) + 14px);
   width: var(--clock-size);
   height: var(--clock-size);
   border-radius: 50%;
@@ -152,7 +154,7 @@ html, body {
   cursor: grab;
   touch-action: none;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  z-index: 15;
+  z-index: 25;
 }
 
 .clock-widget.is-dragging {
@@ -217,11 +219,15 @@ html, body {
   fill: #0f172a;
 }
 
-/* 右上ボタングループ（一時停止、次へ、設定） */
+/* 右上ボタングループ（一時停止、次へ、設定） - 常に画面右上に固定 */
 .top-controls {
   pointer-events: auto;
+  position: fixed;
+  top: calc(var(--safe-top) + 12px);
+  right: calc(var(--safe-right) + 14px);
   display: flex;
   gap: 8px;
+  z-index: 30;
 }
 
 .icon-btn {
@@ -637,6 +643,16 @@ html, body {
 @media (orientation: landscape) {
   :root {
     --clock-size: 68px;
+  }
+
+  .clock-widget {
+    top: calc(var(--safe-top) + 8px);
+    left: calc(var(--safe-left) + 16px);
+  }
+
+  .top-controls {
+    top: calc(var(--safe-top) + 8px);
+    right: calc(var(--safe-right) + 16px);
   }
 
   .ui-overlay {
