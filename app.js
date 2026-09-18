@@ -17,18 +17,52 @@
   const STORAGE_KEY_NOTIFY_INTERVAL = 'random_sv_notify_interval';
   const STORAGE_KEY_NOTIFY_POS = 'random_sv_notify_pos';
 
-  let apiKey = localStorage.getItem(STORAGE_KEY_API_KEY) || '';
-  let intervalSeconds = parseInt(localStorage.getItem(STORAGE_KEY_INTERVAL) || '60', 10);
-  let wanderMode = localStorage.getItem(STORAGE_KEY_WANDER_MODE) || 'wander';
+  // --- 安全なストレージラッパー (GAS iframe / Safari サードパーティCookieブロック対策) ---
+  const safeStorage = {
+    _mem: {},
+    getItem: function (key) {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const val = window.localStorage.getItem(key);
+          if (val !== null) return val;
+        }
+      } catch (e) {
+        // iframe / プライベートブラウズでの SecurityError を安全に握り潰す
+      }
+      return this._mem[key] !== undefined ? this._mem[key] : null;
+    },
+    setItem: function (key, value) {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(key, String(value));
+          return;
+        }
+      } catch (e) {}
+      this._mem[key] = String(value);
+    },
+    removeItem: function (key) {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.removeItem(key);
+          return;
+        }
+      } catch (e) {}
+      delete this._mem[key];
+    }
+  };
+
+  let apiKey = safeStorage.getItem(STORAGE_KEY_API_KEY) || '';
+  let intervalSeconds = parseInt(safeStorage.getItem(STORAGE_KEY_INTERVAL) || '60', 10);
+  let wanderMode = safeStorage.getItem(STORAGE_KEY_WANDER_MODE) || 'wander';
   let favoritesList = [];
 
   // 通知機能の状態
-  let notifyEnabled = localStorage.getItem(STORAGE_KEY_NOTIFY_ENABLED) !== 'false';
-  let notifyTickerEnabled = localStorage.getItem(STORAGE_KEY_NOTIFY_TICKER) !== 'false';
-  let notifySource = localStorage.getItem(STORAGE_KEY_NOTIFY_SOURCE) || 'demo'; // 'demo' | 'gas'
+  let notifyEnabled = safeStorage.getItem(STORAGE_KEY_NOTIFY_ENABLED) !== 'false';
+  let notifyTickerEnabled = safeStorage.getItem(STORAGE_KEY_NOTIFY_TICKER) !== 'false';
+  let notifySource = safeStorage.getItem(STORAGE_KEY_NOTIFY_SOURCE) || 'demo'; // 'demo' | 'gas'
   const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbw8Ogsccbj67RVnDV-f3aZ0UONdgH_-9bVzS8cupdmjvJXFTM9bL13u4uWDYbqCHu4wiQ/exec';
-  let notifyGasUrl = localStorage.getItem(STORAGE_KEY_NOTIFY_GAS_URL) || DEFAULT_GAS_URL;
-  let notifyIntervalSeconds = parseInt(localStorage.getItem(STORAGE_KEY_NOTIFY_INTERVAL) || '180', 10);
+  let notifyGasUrl = safeStorage.getItem(STORAGE_KEY_NOTIFY_GAS_URL) || DEFAULT_GAS_URL;
+  let notifyIntervalSeconds = parseInt(safeStorage.getItem(STORAGE_KEY_NOTIFY_INTERVAL) || '180', 10);
 
   let notifyData = {
     chatwork: { unread_count: 0, items: [] },
@@ -424,20 +458,35 @@
     const nextImg = currentLayer === 'a' ? layerB : layerA;
     const activeImg = currentLayer === 'a' ? layerA : layerB;
 
-    const preload = new Image();
+    let isDone = false;
     const handleLoaded = () => {
+      if (isDone) return;
+      isDone = true;
       nextImg.src = preload.src;
       nextImg.classList.add('active');
       activeImg.classList.remove('active');
       currentLayer = currentLayer === 'a' ? 'b' : 'a';
-      if (onReady) setTimeout(onReady, 100);
+      if (onReady) setTimeout(onReady, 50);
     };
 
+    const preload = new Image();
     preload.onload = handleLoaded;
     preload.onerror = () => {
       preload.src = loc.demoImage || 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80';
       handleLoaded();
     };
+
+    // タイムアウト：もし画像が500ms以内にロードされなければ強制表示して進行
+    setTimeout(() => {
+      if (!isDone) {
+        nextImg.src = imageUrl;
+        nextImg.classList.add('active');
+        activeImg.classList.remove('active');
+        currentLayer = currentLayer === 'a' ? 'b' : 'a';
+        if (onReady) onReady();
+      }
+    }, 600);
+
     preload.src = imageUrl;
   }
 
@@ -445,6 +494,7 @@
   // 7. シネマティック フェードイン/アウト トランジション
   // =========================================================================
   function transitionToLocation(loc, isDirectJump = false) {
+    if (!loc) return;
     if (isTransitioning) return;
     isTransitioning = true;
 
@@ -453,29 +503,37 @@
     const locationInfo = document.querySelector('.location-info');
     if (locationInfo) locationInfo.classList.add('fading');
 
-    // 暗転完了タイミング（約450ms後）にコンテンツ差し替え
+    // 暗転完了タイミング（約400ms後）にコンテンツ差し替え
     setTimeout(() => {
       currentLocation = loc;
 
       // 国名・住所テキストの反映
       const flagPrefix = loc.flag ? `${loc.flag} ` : '';
-      locCountry.textContent = `${flagPrefix}${loc.country}`;
-      locDetail.textContent = loc.addressText || `${loc.region} ${loc.city}`;
+      if (locCountry) locCountry.textContent = `${flagPrefix}${loc.country}`;
+      if (locDetail) locDetail.textContent = loc.addressText || `${loc.region} ${loc.city}`;
 
       // お気に入り状態のUI反映
       updateFavoriteButtonsState();
 
       // 新しい地点の描画完了時コールバック（カーテンを開く）
+      let hasRevealed = false;
       const revealScene = () => {
+        if (hasRevealed) return;
+        hasRevealed = true;
         setTimeout(() => {
           if (locationInfo) locationInfo.classList.remove('fading');
           if (sceneCurtain) sceneCurtain.classList.remove('fade-out');
           resetTimer();
           setTimeout(() => {
             isTransitioning = false;
-          }, 600);
-        }, 150);
+          }, 400);
+        }, 80);
       };
+
+      // フェイルセーフ：画像ロードが遅れても最大800ms後には必ずカーテンを開く！
+      setTimeout(() => {
+        if (!hasRevealed) revealScene();
+      }, 800);
 
       if (apiKey && apiKey.trim().length > 0) {
         if (isGoogleMapsLoaded) {
@@ -486,14 +544,28 @@
           });
         }
       } else {
-        panoContainer.classList.remove('active');
+        if (panoContainer) panoContainer.classList.remove('active');
         loadStaticDemoImage(loc, revealScene);
       }
-    }, 450);
+    }, 380);
   }
 
-  function showNextLocation() {
+  function showNextLocation(immediate = false) {
     const loc = getNextLocation();
+    if (!loc) return;
+
+    if (immediate) {
+      currentLocation = loc;
+      const flagPrefix = loc.flag ? `${loc.flag} ` : '';
+      if (locCountry) locCountry.textContent = `${flagPrefix}${loc.country}`;
+      if (locDetail) locDetail.textContent = loc.addressText || `${loc.region} ${loc.city}`;
+      updateFavoriteButtonsState();
+      loadStaticDemoImage(loc);
+      if (sceneCurtain) sceneCurtain.classList.remove('fade-out');
+      isTransitioning = false;
+      return;
+    }
+
     transitionToLocation(loc, false);
   }
 
@@ -540,7 +612,7 @@
   // =========================================================================
   function loadFavorites() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_FAVORITES);
+      const raw = safeStorage.getItem(STORAGE_KEY_FAVORITES);
       favoritesList = raw ? JSON.parse(raw) : [];
     } catch (e) {
       favoritesList = [];
@@ -551,7 +623,7 @@
 
   function saveFavorites() {
     try {
-      localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(favoritesList));
+      safeStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(favoritesList));
     } catch (e) {
       console.error('お気に入りの保存に失敗しました:', e);
     }
@@ -867,14 +939,14 @@
     intervalSeconds = parseInt(selectInterval.value, 10) || 60;
     wanderMode = selectWanderMode ? selectWanderMode.value : 'wander';
 
-    localStorage.setItem(STORAGE_KEY_API_KEY, apiKey);
-    localStorage.setItem(STORAGE_KEY_INTERVAL, intervalSeconds.toString());
-    localStorage.setItem(STORAGE_KEY_WANDER_MODE, wanderMode);
+    safeStorage.setItem(STORAGE_KEY_API_KEY, apiKey);
+    safeStorage.setItem(STORAGE_KEY_INTERVAL, intervalSeconds.toString());
+    safeStorage.setItem(STORAGE_KEY_WANDER_MODE, wanderMode);
 
     // 通知設定の保存
     if (checkNotifyEnabled) {
       notifyEnabled = checkNotifyEnabled.checked;
-      localStorage.setItem(STORAGE_KEY_NOTIFY_ENABLED, notifyEnabled ? 'true' : 'false');
+      safeStorage.setItem(STORAGE_KEY_NOTIFY_ENABLED, notifyEnabled ? 'true' : 'false');
       if (notifyWidget) {
         if (notifyEnabled) {
           notifyWidget.classList.remove('hidden');
@@ -886,22 +958,22 @@
 
     if (checkNotifyTicker) {
       notifyTickerEnabled = checkNotifyTicker.checked;
-      localStorage.setItem(STORAGE_KEY_NOTIFY_TICKER, notifyTickerEnabled ? 'true' : 'false');
+      safeStorage.setItem(STORAGE_KEY_NOTIFY_TICKER, notifyTickerEnabled ? 'true' : 'false');
     }
 
     if (selectNotifySource) {
       notifySource = selectNotifySource.value;
-      localStorage.setItem(STORAGE_KEY_NOTIFY_SOURCE, notifySource);
+      safeStorage.setItem(STORAGE_KEY_NOTIFY_SOURCE, notifySource);
     }
 
     if (inputNotifyGasUrl) {
       notifyGasUrl = inputNotifyGasUrl.value.trim();
-      localStorage.setItem(STORAGE_KEY_NOTIFY_GAS_URL, notifyGasUrl);
+      safeStorage.setItem(STORAGE_KEY_NOTIFY_GAS_URL, notifyGasUrl);
     }
 
     if (selectNotifyInterval) {
       notifyIntervalSeconds = parseInt(selectNotifyInterval.value, 10) || 180;
-      localStorage.setItem(STORAGE_KEY_NOTIFY_INTERVAL, notifyIntervalSeconds.toString());
+      safeStorage.setItem(STORAGE_KEY_NOTIFY_INTERVAL, notifyIntervalSeconds.toString());
     }
 
     closeSettingsModal();
@@ -966,7 +1038,7 @@
     }
 
     function resetToDefault() {
-      localStorage.removeItem(storageKey);
+      safeStorage.removeItem(storageKey);
       element.style.position = '';
       element.style.left = '';
       element.style.top = '';
@@ -976,7 +1048,7 @@
     }
 
     function restorePosition() {
-      const saved = localStorage.getItem(storageKey);
+      const saved = safeStorage.getItem(storageKey);
       if (saved) {
         try {
           const { ratioX, ratioY } = JSON.parse(saved);
@@ -1049,7 +1121,7 @@
         const rect = element.getBoundingClientRect();
         const ratioX = rect.left / window.innerWidth;
         const ratioY = rect.top / window.innerHeight;
-        localStorage.setItem(storageKey, JSON.stringify({ ratioX, ratioY }));
+        safeStorage.setItem(storageKey, JSON.stringify({ ratioX, ratioY }));
         isDragging = false;
         return;
       }
@@ -1766,7 +1838,7 @@
     // 画面向き変更・リサイズ時の位置再計算
     window.addEventListener('resize', () => {
       draggableElements.forEach(item => {
-        const saved = localStorage.getItem(item.storageKey);
+        const saved = safeStorage.getItem(item.storageKey);
         if (saved) {
           try {
             const { ratioX, ratioY } = JSON.parse(saved);
@@ -1783,7 +1855,7 @@
     window.addEventListener('orientationchange', () => {
       setTimeout(() => {
         draggableElements.forEach(item => {
-          const saved = localStorage.getItem(item.storageKey);
+          const saved = safeStorage.getItem(item.storageKey);
           if (saved) {
             try {
               const { ratioX, ratioY } = JSON.parse(saved);
@@ -1802,15 +1874,19 @@
   // 11. 初期化
   // =========================================================================
   function init() {
-    loadFavorites();
-    initClockTicks();
-    updateClock();
-    initEvents();
-    initNotificationSystem();
+    try { loadFavorites(); } catch (e) { console.warn('loadFavorites warning:', e); }
+    try { initClockTicks(); } catch (e) { console.warn('initClockTicks warning:', e); }
+    try { updateClock(); } catch (e) { console.warn('updateClock warning:', e); }
+    try { initEvents(); } catch (e) { console.warn('initEvents warning:', e); }
+    try { initNotificationSystem(); } catch (e) { console.warn('initNotificationSystem warning:', e); }
 
-    // 最初の地点を表示＆タイマースタート
-    showNextLocation();
-    startTimer();
+    // 最初の地点を表示（immediate=trueでカーテン待機なく即時表示）＆タイマースタート
+    try {
+      showNextLocation(true);
+      startTimer();
+    } catch (e) {
+      console.error('初期地点表示エラー:', e);
+    }
   }
 
   // DOMContentLoadedで起動

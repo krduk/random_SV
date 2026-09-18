@@ -112,7 +112,7 @@ html, body {
 
 .scene-curtain.fade-out {
   opacity: 1;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 /* 暗めのグラデーションオーバーレイで文字と時計の視認性を担保 */
