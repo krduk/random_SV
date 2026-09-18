@@ -1,0 +1,10 @@
+{
+  "name": "random-streetview",
+  "version": "3.2.0",
+  "description": "世界の街角ランダムストリートビュー with Chatwork & Gmail 未読通知",
+  "scripts": {
+    "build": "node build_gas.js",
+    "push": "node build_gas.js && clasp push -f",
+    "deploy": "node build_gas.js && clasp push -f && clasp deploy"
+  }
+}

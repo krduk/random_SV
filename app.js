@@ -10,11 +10,36 @@
   const STORAGE_KEY_INTERVAL = 'random_streetview_interval';
   const STORAGE_KEY_WANDER_MODE = 'random_streetview_wander_mode';
   const STORAGE_KEY_FAVORITES = 'random_streetview_favorites_v1';
+  const STORAGE_KEY_NOTIFY_ENABLED = 'random_sv_notify_enabled';
+  const STORAGE_KEY_NOTIFY_TICKER = 'random_sv_notify_ticker';
+  const STORAGE_KEY_NOTIFY_SOURCE = 'random_sv_notify_source';
+  const STORAGE_KEY_NOTIFY_GAS_URL = 'random_sv_notify_gas_url';
+  const STORAGE_KEY_NOTIFY_INTERVAL = 'random_sv_notify_interval';
+  const STORAGE_KEY_NOTIFY_POS = 'random_sv_notify_pos';
 
   let apiKey = localStorage.getItem(STORAGE_KEY_API_KEY) || '';
   let intervalSeconds = parseInt(localStorage.getItem(STORAGE_KEY_INTERVAL) || '60', 10);
   let wanderMode = localStorage.getItem(STORAGE_KEY_WANDER_MODE) || 'wander';
   let favoritesList = [];
+
+  // 通知機能の状態
+  let notifyEnabled = localStorage.getItem(STORAGE_KEY_NOTIFY_ENABLED) !== 'false';
+  let notifyTickerEnabled = localStorage.getItem(STORAGE_KEY_NOTIFY_TICKER) !== 'false';
+  let notifySource = localStorage.getItem(STORAGE_KEY_NOTIFY_SOURCE) || 'demo'; // 'demo' | 'gas'
+  const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbw8Ogsccbj67RVnDV-f3aZ0UONdgH_-9bVzS8cupdmjvJXFTM9bL13u4uWDYbqCHu4wiQ/exec';
+  let notifyGasUrl = localStorage.getItem(STORAGE_KEY_NOTIFY_GAS_URL) || DEFAULT_GAS_URL;
+  let notifyIntervalSeconds = parseInt(localStorage.getItem(STORAGE_KEY_NOTIFY_INTERVAL) || '180', 10);
+
+  let notifyData = {
+    chatwork: { unread_count: 0, items: [] },
+    gmail: { unread_count: 0, items: [] }
+  };
+  let notifyTimerId = null;
+  let notifyTickerTimerId = null;
+  let currentTickerItems = [];
+  let currentTickerIndex = 0;
+  let notifyActiveTab = 'all'; // 'all' | 'chatwork' | 'gmail'
+  let lastNotifyFetchTime = null;
 
   let isPaused = false;
   let remainingSeconds = intervalSeconds;
@@ -42,6 +67,38 @@
   const minuteHand = document.getElementById('minute-hand');
   const secondHand = document.getElementById('second-hand');
   const clockTicksGroup = document.getElementById('clock-ticks');
+
+  // 通知ウィジェット DOM
+  const notifyWidget = document.getElementById('notify-widget');
+  const notifyCwBadge = document.getElementById('notify-cw-badge');
+  const notifyGmailBadge = document.getElementById('notify-gmail-badge');
+  const notifyTicker = document.getElementById('notify-ticker');
+  const notifyTickerText = document.getElementById('notify-ticker-text');
+  const notifySyncSpinner = document.getElementById('notify-sync-spinner');
+
+  // 通知詳細モーダル DOM
+  const notifyModal = document.getElementById('notify-modal-backdrop');
+  const btnCloseNotify = document.getElementById('btn-close-notify');
+  const btnRefreshNotify = document.getElementById('btn-refresh-notifications');
+  const notifyModalTotalBadge = document.getElementById('notify-modal-total-badge');
+  const tabBadgeAll = document.getElementById('tab-badge-all');
+  const tabBadgeCw = document.getElementById('tab-badge-cw');
+  const tabBadgeGmail = document.getElementById('tab-badge-gmail');
+  const notifyList = document.getElementById('notify-list');
+  const notifyLastUpdated = document.getElementById('notify-last-updated');
+  const btnOpenNotifySettings = document.getElementById('btn-open-notify-settings');
+
+  // 設定モーダル内の通知項目 DOM
+  const checkNotifyEnabled = document.getElementById('check-notify-enabled');
+  const checkNotifyTicker = document.getElementById('check-notify-ticker');
+  const selectNotifySource = document.getElementById('select-notify-source');
+  const settingsGasUrlGroup = document.getElementById('settings-gas-url-group');
+  const inputNotifyGasUrl = document.getElementById('input-notify-gas-url');
+  const btnTestGas = document.getElementById('btn-test-gas-connection');
+  const btnShowGasInstructions = document.getElementById('btn-show-gas-instructions');
+  const gasInstructionsCard = document.getElementById('gas-instructions-card');
+  const btnCopyGasCode = document.getElementById('btn-copy-gas-code');
+  const selectNotifyInterval = document.getElementById('select-notify-interval');
 
   const btnTogglePlay = document.getElementById('btn-toggle-play');
   const iconPause = document.getElementById('icon-pause');
@@ -788,6 +845,16 @@
     inputApiKey.value = apiKey;
     selectInterval.value = intervalSeconds.toString();
     if (selectWanderMode) selectWanderMode.value = wanderMode;
+
+    // 通知設定の反映
+    if (checkNotifyEnabled) checkNotifyEnabled.checked = notifyEnabled;
+    if (checkNotifyTicker) checkNotifyTicker.checked = notifyTickerEnabled;
+    if (selectNotifySource) selectNotifySource.value = notifySource;
+    if (inputNotifyGasUrl) inputNotifyGasUrl.value = notifyGasUrl;
+    if (selectNotifyInterval) selectNotifyInterval.value = notifyIntervalSeconds.toString();
+    if (settingsGasUrlGroup) settingsGasUrlGroup.style.display = (notifySource === 'gas') ? 'block' : 'none';
+    if (gasInstructionsCard) gasInstructionsCard.style.display = 'none';
+
     settingsModal.classList.add('open');
   }
 
@@ -804,8 +871,45 @@
     localStorage.setItem(STORAGE_KEY_INTERVAL, intervalSeconds.toString());
     localStorage.setItem(STORAGE_KEY_WANDER_MODE, wanderMode);
 
+    // 通知設定の保存
+    if (checkNotifyEnabled) {
+      notifyEnabled = checkNotifyEnabled.checked;
+      localStorage.setItem(STORAGE_KEY_NOTIFY_ENABLED, notifyEnabled ? 'true' : 'false');
+      if (notifyWidget) {
+        if (notifyEnabled) {
+          notifyWidget.classList.remove('hidden');
+        } else {
+          notifyWidget.classList.add('hidden');
+        }
+      }
+    }
+
+    if (checkNotifyTicker) {
+      notifyTickerEnabled = checkNotifyTicker.checked;
+      localStorage.setItem(STORAGE_KEY_NOTIFY_TICKER, notifyTickerEnabled ? 'true' : 'false');
+    }
+
+    if (selectNotifySource) {
+      notifySource = selectNotifySource.value;
+      localStorage.setItem(STORAGE_KEY_NOTIFY_SOURCE, notifySource);
+    }
+
+    if (inputNotifyGasUrl) {
+      notifyGasUrl = inputNotifyGasUrl.value.trim();
+      localStorage.setItem(STORAGE_KEY_NOTIFY_GAS_URL, notifyGasUrl);
+    }
+
+    if (selectNotifyInterval) {
+      notifyIntervalSeconds = parseInt(selectNotifyInterval.value, 10) || 180;
+      localStorage.setItem(STORAGE_KEY_NOTIFY_INTERVAL, notifyIntervalSeconds.toString());
+    }
+
     closeSettingsModal();
     resetTimer();
+
+    // 通知ポーリングの再設定 & 即時データ更新
+    startNotificationPolling();
+    fetchNotificationData();
 
     // 現在の地点を新しいAPIキー設定に合わせて再読み込み
     if (apiKey && apiKey.trim().length > 0) {
@@ -978,7 +1082,419 @@
   }
 
   // =========================================================================
-  // 9. イベントリスナー登録
+  // 9. 未読通知システム (Chatwork & Gmail)
+  // =========================================================================
+
+  const DEMO_NOTIFY_DATA = {
+    chatwork: {
+      unread_count: 2,
+      items: [
+        {
+          id: 'cw-1',
+          room_id: '248815614',
+          room_name: 'デザイン・校正共有',
+          sender_name: '佐藤 健太',
+          body: 'ストリートビューのUIデザイン確認しました。通知バッジが風景の邪魔にならずとても良い感じです！',
+          date: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+          date_formatted: '15分前'
+        },
+        {
+          id: 'cw-2',
+          room_id: '123456789',
+          room_name: 'プロジェクト進捗',
+          sender_name: '山田 太郎',
+          body: '来週の更新リスト同期について、GASの最新コードを共有いたします。',
+          date: new Date(Date.now() - 48 * 60 * 1000).toISOString(),
+          date_formatted: '48分前'
+        }
+      ]
+    },
+    gmail: {
+      unread_count: 2,
+      items: [
+        {
+          id: 'gm-1',
+          from: 'Google Cloud Platform',
+          from_email: 'cloud-noreply@google.com',
+          subject: '【重要】Maps JavaScript APIの月次クォータ使用状況レポート',
+          date: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+          date_formatted: '25分前',
+          snippet: 'プロジェクトの利用状況レポートが準備できました。コンソールよりご確認いただけます。'
+        },
+        {
+          id: 'gm-2',
+          from: 'GitHub Notifications',
+          from_email: 'notifications@github.com',
+          subject: '[GitHub] あなたのリポジトリへのPull Requestが承認されました',
+          date: new Date(Date.now() - 75 * 60 * 1000).toISOString(),
+          date_formatted: '1時間前',
+          snippet: 'All status checks have passed. You can now merge the pull request.'
+        }
+      ]
+    }
+  };
+
+  /**
+   * 通知システム全体の初期化
+   */
+  function initNotificationSystem() {
+    if (!notifyWidget) return;
+
+    if (notifyEnabled) {
+      notifyWidget.classList.remove('hidden');
+    } else {
+      notifyWidget.classList.add('hidden');
+    }
+
+    // 初回データ取得
+    fetchNotificationData();
+
+    // 定期ポーリング開始
+    startNotificationPolling();
+  }
+
+  /**
+   * ポーリングタイマー開始
+   */
+  function startNotificationPolling() {
+    if (notifyTimerId) {
+      clearInterval(notifyTimerId);
+      notifyTimerId = null;
+    }
+    const intervalMs = Math.max(30, notifyIntervalSeconds) * 1000;
+    notifyTimerId = setInterval(() => {
+      fetchNotificationData();
+    }, intervalMs);
+  }
+
+  /**
+   * 未読データの取得（デモモード または GAS連携）
+   */
+  function fetchNotificationData(isManual = false) {
+    if (!notifyEnabled && !isManual) return;
+
+    if (notifySyncSpinner) notifySyncSpinner.style.display = 'inline-block';
+    if (btnRefreshNotify) btnRefreshNotify.classList.add('rotating');
+
+    if (notifySource === 'demo' || !notifyGasUrl) {
+      // デモモード（またはURL未設定時のフォールバック）
+      setTimeout(() => {
+        notifyData = JSON.parse(JSON.stringify(DEMO_NOTIFY_DATA));
+        lastNotifyFetchTime = new Date();
+        updateNotificationUI();
+        if (notifySyncSpinner) notifySyncSpinner.style.display = 'none';
+        if (btnRefreshNotify) btnRefreshNotify.classList.remove('rotating');
+
+        if (isManual) {
+          showToast(notifySource === 'demo' ? 'デモ用通知データを更新しました' : 'GAS URL未設定のためデモを表示中');
+        }
+      }, isManual ? 400 : 100);
+      return;
+    }
+
+    // A. GASのWebアプリ（HTML Service）として実行されている場合は直接サーバー関数を呼出
+    if (window.google && window.google.script && window.google.script.run) {
+      google.script.run
+        .withSuccessHandler((json) => {
+          if (json && json.status === 'success') {
+            notifyData = {
+              chatwork: json.chatwork || { unread_count: 0, items: [] },
+              gmail: json.gmail || { unread_count: 0, items: [] }
+            };
+            lastNotifyFetchTime = new Date();
+            updateNotificationUI();
+            if (isManual) showToast('未読通知を最新に更新しました（GAS直接連携）');
+          } else {
+            console.warn('GAS内部エラー:', json);
+            if (isManual) showToast('通知取得でエラーが発生しました');
+          }
+          if (notifySyncSpinner) notifySyncSpinner.style.display = 'none';
+          if (btnRefreshNotify) btnRefreshNotify.classList.remove('rotating');
+        })
+        .withFailureHandler((err) => {
+          console.warn('google.script.run 失敗:', err);
+          if (isManual) showToast('GAS通信に失敗しました');
+          if (notifySyncSpinner) notifySyncSpinner.style.display = 'none';
+          if (btnRefreshNotify) btnRefreshNotify.classList.remove('rotating');
+        })
+        .getNotificationDataFromGAS();
+      return;
+    }
+
+    // B. 通常のWeb環境・ローカル環境では GAS Web App 経由でデータ取得
+    const requestUrl = notifyGasUrl.trim();
+    fetch(requestUrl, {
+      method: 'GET',
+      mode: 'cors'
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(json => {
+        if (json.status === 'error') {
+          throw new Error(json.message || 'GAS内部エラー');
+        }
+        notifyData = {
+          chatwork: json.chatwork || { unread_count: 0, items: [] },
+          gmail: json.gmail || { unread_count: 0, items: [] }
+        };
+        lastNotifyFetchTime = new Date();
+        updateNotificationUI();
+        if (isManual) showToast('未読通知を最新に更新しました');
+      })
+      .catch(err => {
+        console.warn('通知データの取得に失敗しました:', err);
+        if (isManual) showToast('通知取得に失敗。GAS URLを確認してください');
+      })
+      .finally(() => {
+        if (notifySyncSpinner) notifySyncSpinner.style.display = 'none';
+        if (btnRefreshNotify) btnRefreshNotify.classList.remove('rotating');
+      });
+  }
+
+  /**
+   * UIおよびティッカーの更新
+   */
+  function updateNotificationUI() {
+    const cwItems = (notifyData.chatwork && notifyData.chatwork.items) || [];
+    const gmailItems = (notifyData.gmail && notifyData.gmail.items) || [];
+    const cwCount = notifyData.chatwork ? (notifyData.chatwork.unread_count ?? cwItems.length) : 0;
+    const gmailCount = notifyData.gmail ? (notifyData.gmail.unread_count ?? gmailItems.length) : 0;
+    const totalCount = cwCount + gmailCount;
+
+    // Chatwork バッジ
+    if (notifyCwBadge) {
+      if (cwCount > 0) {
+        notifyCwBadge.textContent = cwCount > 99 ? '99+' : cwCount;
+        notifyCwBadge.style.display = 'inline-flex';
+        notifyCwBadge.classList.remove('zero');
+      } else {
+        notifyCwBadge.textContent = '0';
+        notifyCwBadge.style.display = 'none';
+      }
+    }
+
+    // Gmail バッジ
+    if (notifyGmailBadge) {
+      if (gmailCount > 0) {
+        notifyGmailBadge.textContent = gmailCount > 99 ? '99+' : gmailCount;
+        notifyGmailBadge.style.display = 'inline-flex';
+        notifyGmailBadge.classList.remove('zero');
+      } else {
+        notifyGmailBadge.textContent = '0';
+        notifyGmailBadge.style.display = 'none';
+      }
+    }
+
+    // モーダルの総合バッジ & タブバッジ
+    if (notifyModalTotalBadge) notifyModalTotalBadge.textContent = `${totalCount}件`;
+    if (tabBadgeAll) tabBadgeAll.textContent = totalCount;
+    if (tabBadgeCw) tabBadgeCw.textContent = cwCount;
+    if (tabBadgeGmail) tabBadgeGmail.textContent = gmailCount;
+
+    // 最終更新日時
+    if (notifyLastUpdated) {
+      if (lastNotifyFetchTime) {
+        const timeStr = lastNotifyFetchTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const sourceLabel = notifySource === 'demo' ? ' (デモ)' : '';
+        notifyLastUpdated.textContent = `最終確認: ${timeStr}${sourceLabel}`;
+      } else {
+        notifyLastUpdated.textContent = '未取得';
+      }
+    }
+
+    // ティッカー表示アイテムの構築
+    currentTickerItems = [];
+    cwItems.forEach(item => {
+      currentTickerItems.push({
+        type: 'chatwork',
+        prefix: '💬',
+        sender: item.sender_name || 'Chatwork',
+        text: item.body || item.room_name || '新着メッセージ',
+        time: item.date_formatted || ''
+      });
+    });
+
+    gmailItems.forEach(item => {
+      currentTickerItems.push({
+        type: 'gmail',
+        prefix: '✉️',
+        sender: item.from || 'Gmail',
+        text: item.subject || '(件名なし)',
+        time: item.date_formatted || ''
+      });
+    });
+
+    // ティッカー回転の開始/停止
+    startTickerRotation(totalCount);
+
+    // モーダルが開いていれば再レンダリング
+    if (notifyModal && notifyModal.classList.contains('open')) {
+      renderNotificationModalList();
+    }
+  }
+
+  /**
+   * 穏やかなティッカー（テロップ）回転
+   */
+  function startTickerRotation(totalCount) {
+    if (notifyTickerTimerId) {
+      clearInterval(notifyTickerTimerId);
+      notifyTickerTimerId = null;
+    }
+
+    if (!notifyTicker || !notifyTickerText) return;
+
+    if (!notifyTickerEnabled) {
+      notifyTicker.style.display = 'none';
+      return;
+    }
+
+    notifyTicker.style.display = 'flex';
+
+    if (totalCount === 0 || currentTickerItems.length === 0) {
+      notifyTickerText.textContent = '未読なし ✨';
+      notifyTickerText.classList.remove('fade-out');
+      return;
+    }
+
+    // 最初のアイテムを表示
+    showTickerItem(currentTickerIndex % currentTickerItems.length);
+
+    if (currentTickerItems.length > 1) {
+      notifyTickerTimerId = setInterval(() => {
+        currentTickerIndex = (currentTickerIndex + 1) % currentTickerItems.length;
+        notifyTickerText.classList.add('fade-out');
+        setTimeout(() => {
+          showTickerItem(currentTickerIndex);
+          notifyTickerText.classList.remove('fade-out');
+          notifyTickerText.classList.add('fade-in');
+          setTimeout(() => notifyTickerText.classList.remove('fade-in'), 400);
+        }, 350);
+      }, 4800);
+    }
+  }
+
+  function showTickerItem(index) {
+    if (!currentTickerItems || currentTickerItems.length === 0) return;
+    const item = currentTickerItems[index];
+    if (!item) return;
+    notifyTickerText.textContent = `${item.prefix} ${item.sender}: ${item.text}`;
+  }
+
+  /**
+   * 通知モーダルの開閉
+   */
+  function openNotifyModal() {
+    if (!notifyModal) return;
+    renderNotificationModalList();
+    notifyModal.classList.add('open');
+  }
+
+  function closeNotifyModal() {
+    if (!notifyModal) return;
+    notifyModal.classList.remove('open');
+  }
+
+  /**
+   * 通知モーダルのリストを描画
+   */
+  function renderNotificationModalList() {
+    if (!notifyList) return;
+    notifyList.innerHTML = '';
+
+    const cwItems = (notifyData.chatwork && notifyData.chatwork.items) || [];
+    const gmailItems = (notifyData.gmail && notifyData.gmail.items) || [];
+
+    let filteredItems = [];
+
+    if (notifyActiveTab === 'all') {
+      cwItems.forEach(i => filteredItems.push({ service: 'chatwork', ...i }));
+      gmailItems.forEach(i => filteredItems.push({ service: 'gmail', ...i }));
+      filteredItems.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    } else if (notifyActiveTab === 'chatwork') {
+      filteredItems = cwItems.map(i => ({ service: 'chatwork', ...i }));
+    } else if (notifyActiveTab === 'gmail') {
+      filteredItems = gmailItems.map(i => ({ service: 'gmail', ...i }));
+    }
+
+    if (filteredItems.length === 0) {
+      notifyList.innerHTML = `
+        <div class="notify-empty-state">
+          <div class="notify-empty-icon">🌿</div>
+          <div class="notify-empty-text">未読はありません</div>
+          <div class="notify-empty-sub">現在確認すべき未読メッセージやメールはありません。風景をゆっくりお楽しみください。</div>
+        </div>
+      `;
+      return;
+    }
+
+    filteredItems.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'notify-item';
+
+      if (item.service === 'chatwork') {
+        const timeDisplay = item.date_formatted || (item.date ? new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+        const chatworkLink = item.room_id ? `https://www.chatwork.com/#!rid${item.room_id}` : 'https://www.chatwork.com/';
+
+        card.innerHTML = `
+          <div class="notify-item-header">
+            <div class="notify-item-sender-wrap">
+              <span class="notify-service-tag tag-chatwork">💬 Chatwork</span>
+              <span class="notify-item-sender">${escapeHtml(item.sender_name || 'Unknown')}</span>
+            </div>
+            <span class="notify-item-time">${escapeHtml(timeDisplay)}</span>
+          </div>
+          ${item.room_name ? `<div class="notify-item-room">📁 ${escapeHtml(item.room_name)}</div>` : ''}
+          <div class="notify-item-body">${escapeHtml(item.body || '(本文なし)')}</div>
+          <div class="notify-item-actions">
+            <a href="${chatworkLink}" target="_blank" rel="noopener noreferrer" class="notify-open-btn">
+              Chatworkで開く
+              <svg viewBox="0 0 24 24"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3m-2 16H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7z"/></svg>
+            </a>
+          </div>
+        `;
+      } else {
+        // Gmail
+        const timeDisplay = item.date_formatted || (item.date ? new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+        const gmailLink = 'https://mail.google.com/';
+
+        card.innerHTML = `
+          <div class="notify-item-header">
+            <div class="notify-item-sender-wrap">
+              <span class="notify-service-tag tag-gmail">✉️ Gmail</span>
+              <span class="notify-item-sender">${escapeHtml(item.from || 'Unknown')}</span>
+            </div>
+            <span class="notify-item-time">${escapeHtml(timeDisplay)}</span>
+          </div>
+          <div class="notify-item-subject">${escapeHtml(item.subject || '(件名なし)')}</div>
+          ${item.snippet ? `<div class="notify-item-body">${escapeHtml(item.snippet)}</div>` : ''}
+          <div class="notify-item-actions">
+            <a href="${gmailLink}" target="_blank" rel="noopener noreferrer" class="notify-open-btn">
+              Gmailで開く
+              <svg viewBox="0 0 24 24"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3m-2 16H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7z"/></svg>
+            </a>
+          </div>
+        `;
+      }
+
+      notifyList.appendChild(card);
+    });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // =========================================================================
+  // 10. イベントリスナー登録
   // =========================================================================
   function initEvents() {
     // 静止画表示時の画面タップで地図を開く
@@ -1124,7 +1640,7 @@
       });
     }
 
-    // 時計ウィジェット & 場所カードをドラッグ可能に
+    // 時計ウィジェット & 場所カード & 通知ウィジェットをドラッグ可能に
     const clockWidget = document.getElementById('clock-widget');
     makeDraggable(clockWidget, 'random_sv_clock_pos', {
       onClick: (e) => {
@@ -1138,6 +1654,114 @@
         openMapModal();
       }
     });
+
+    if (notifyWidget) {
+      makeDraggable(notifyWidget, STORAGE_KEY_NOTIFY_POS, {
+        onClick: (e) => {
+          e.stopPropagation();
+          openNotifyModal();
+        }
+      });
+    }
+
+    // 通知モーダルイベント
+    if (btnCloseNotify) {
+      btnCloseNotify.addEventListener('click', closeNotifyModal);
+    }
+    if (notifyModal) {
+      notifyModal.addEventListener('click', (e) => {
+        if (e.target === notifyModal) {
+          closeNotifyModal();
+        }
+      });
+    }
+    if (btnRefreshNotify) {
+      btnRefreshNotify.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fetchNotificationData(true);
+      });
+    }
+    if (btnOpenNotifySettings) {
+      btnOpenNotifySettings.addEventListener('click', () => {
+        closeNotifyModal();
+        openSettingsModal();
+      });
+    }
+
+    // 通知タブ切り替え
+    const notifyTabBtns = document.querySelectorAll('.notify-tab-btn');
+    notifyTabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        notifyTabBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        notifyActiveTab = btn.dataset.tab || 'all';
+        renderNotificationModalList();
+      });
+    });
+
+    // 設定モーダル内の通知連携項目
+    if (selectNotifySource && settingsGasUrlGroup) {
+      selectNotifySource.addEventListener('change', () => {
+        settingsGasUrlGroup.style.display = (selectNotifySource.value === 'gas') ? 'block' : 'none';
+      });
+    }
+
+    if (btnShowGasInstructions && gasInstructionsCard) {
+      btnShowGasInstructions.addEventListener('click', () => {
+        const isHidden = gasInstructionsCard.style.display === 'none';
+        gasInstructionsCard.style.display = isHidden ? 'block' : 'none';
+        btnShowGasInstructions.textContent = isHidden ? '閉じる' : '❓ GAS設定手順とコード';
+      });
+    }
+
+    if (btnTestGas && inputNotifyGasUrl) {
+      btnTestGas.addEventListener('click', () => {
+        const url = inputNotifyGasUrl.value.trim();
+        if (!url) {
+          showToast('GAS Web App URL を入力してください');
+          return;
+        }
+        btnTestGas.disabled = true;
+        btnTestGas.textContent = '接続中...';
+
+        fetch(url, { method: 'GET', mode: 'cors' })
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+          })
+          .then(data => {
+            const cwCount = (data.chatwork && data.chatwork.unread_count) || 0;
+            const gmCount = (data.gmail && data.gmail.unread_count) || 0;
+            showToast(`✅ 接続成功！ (Chatwork: ${cwCount}件, Gmail: ${gmCount}件)`);
+          })
+          .catch(err => {
+            console.error('GAS接続テスト失敗:', err);
+            showToast('❌ 接続に失敗しました。URLまたはデプロイ権限を確認してください');
+          })
+          .finally(() => {
+            btnTestGas.disabled = false;
+            btnTestGas.textContent = '🔗 接続テスト';
+          });
+      });
+    }
+
+    if (btnCopyGasCode) {
+      btnCopyGasCode.addEventListener('click', () => {
+        // NotificationHub.gs のコードを取得してクリップボードにコピー
+        fetch('NotificationHub.gs')
+          .then(res => res.text())
+          .then(code => {
+            navigator.clipboard.writeText(code).then(() => {
+              showToast('📋 GASコードをクリップボードにコピーしました！');
+            }).catch(() => {
+              showToast('コピーに失敗しました。NotificationHub.gsファイルを開いてください');
+            });
+          })
+          .catch(() => {
+            showToast('NotificationHub.gs を直接エディタで開いてコピーしてください');
+          });
+      });
+    }
 
     // 画面向き変更・リサイズ時の位置再計算
     window.addEventListener('resize', () => {
@@ -1182,6 +1806,7 @@
     initClockTicks();
     updateClock();
     initEvents();
+    initNotificationSystem();
 
     // 最初の地点を表示＆タイマースタート
     showNextLocation();

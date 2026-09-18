@@ -1,0 +1,4260 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RandomView">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <title>Random StreetView - 世界の街角</title>
+
+  <!-- Leaflet CSS for Map Overlay -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <!-- Custom Stylesheet -->
+  <style>
+/* ==========================================================================
+   ランダム世界ストリートビュー - スタイルシート
+   iOS / iPhone 最適化（縦置き・横置き・Safe Area対応）
+   ========================================================================== */
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  --accent-color: #ff5252;
+  --accent-blue: #3b82f6;
+  --glass-bg: rgba(10, 15, 25, 0.36);
+  --glass-border: rgba(255, 255, 255, 0.22);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  --text-main: #ffffff;
+  --text-sub: rgba(255, 255, 255, 0.82);
+  --clock-size: 78px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background-color: #000;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Kaku Gothic ProN", "Helvetica Neue", Arial, sans-serif;
+  color: var(--text-main);
+}
+
+/* --- アプリケーション全体コンテナ --- */
+#app-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: #0d1117;
+}
+
+/* --- 背景ストリートビュー表示層 --- */
+.view-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.view-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1), transform 1.2s ease-out;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.view-layer.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pano-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #000;
+}
+
+.pano-container.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* --- シーン切り替えトランジション用フェードカーテン --- */
+.scene-curtain {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 6;
+  transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.scene-curtain.fade-out {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 暗めのグラデーションオーバーレイで文字と時計の視認性を担保 */
+.vignette-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, transparent 40%, rgba(0, 0, 0, 0.3) 100%),
+              linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 25%, transparent 65%, rgba(0,0,0,0.65) 100%);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* --- 上部プログレスバー --- */
+.progress-bar-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.15);
+  z-index: 20;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #60a5fa, #38bdf8, #a855f7);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.8);
+  transition: width 0.25s linear;
+}
+
+/* --- UIオーバーレイ（時計、住所、操作系） --- */
+.ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  pointer-events: none;
+  padding: calc(var(--safe-top) + 12px) calc(var(--safe-right) + 14px) calc(var(--safe-bottom) + 14px) calc(var(--safe-left) + 14px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* 上部エリア（時計と右上ボタン群） */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  pointer-events: none;
+}
+
+/* --- アナログ針時計 --- */
+.clock-widget {
+  pointer-events: auto;
+  position: fixed;
+  top: calc(var(--safe-top) + 12px);
+  left: calc(var(--safe-left) + 14px);
+  width: var(--clock-size);
+  height: var(--clock-size);
+  border-radius: 50%;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  z-index: 25;
+}
+
+.clock-widget.is-dragging {
+  cursor: grabbing;
+  transform: scale(1.08);
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.6);
+  transition: none !important;
+  z-index: 60 !important;
+}
+
+.clock-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.clock-face {
+  fill: none;
+}
+
+.clock-tick {
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+
+.clock-tick.major {
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 2.2;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+}
+
+.clock-hand-hour {
+  stroke: #ffffff;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+  transition: transform 0.05s ease;
+}
+
+.clock-hand-minute {
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+  transition: transform 0.05s ease;
+}
+
+.clock-hand-second {
+  stroke: var(--accent-color);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  filter: drop-shadow(0 1px 3px rgba(255, 82, 82, 0.8));
+  transition: transform 0.05s cubic-bezier(0.4, 2.08, 0.55, 0.44);
+}
+
+.clock-center-dot {
+  fill: var(--accent-color);
+}
+
+.clock-center-inner {
+  fill: #0f172a;
+}
+
+/* 右上ボタングループ（一時停止、次へ、設定） - 常に画面右上に固定 */
+.top-controls {
+  pointer-events: auto;
+  position: fixed;
+  top: calc(var(--safe-top) + 12px);
+  right: calc(var(--safe-right) + 14px);
+  display: flex;
+  gap: 8px;
+  z-index: 30;
+}
+
+.icon-btn {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--glass-shadow);
+  transition: all 0.2s ease;
+}
+
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.icon-btn:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* --- 下部エリア（住所表示カード） --- */
+.bottom-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 600px;
+  pointer-events: none;
+}
+
+.location-card {
+  pointer-events: auto;
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: 20px;
+  padding: 12px 18px 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: grab;
+  touch-action: none;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease, box-shadow 0.2s ease;
+  max-width: 100%;
+  z-index: 15;
+}
+
+.location-card.is-dragging {
+  cursor: grabbing;
+  transform: scale(1.04);
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.6);
+  transition: none !important;
+  z-index: 60 !important;
+}
+
+.pin-icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 82, 82, 0.15);
+  border: 1px solid rgba(255, 82, 82, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pin-icon-wrap svg {
+  width: 18px;
+  height: 18px;
+  fill: var(--accent-color);
+}
+
+.location-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  transition: opacity 0.35s ease;
+}
+
+.location-info.fading {
+  opacity: 0;
+}
+
+.location-country {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #93c5fd;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+
+.location-detail {
+  font-size: 15px;
+  font-weight: 500;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+}
+
+.tap-hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tap-hint svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+/* 画面全体のタップ案内（初回や静止時） */
+.screen-tap-guide {
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 12px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  backdrop-filter: blur(8px);
+}
+
+/* ==========================================================================
+   地図モーダル（オーバーレイ）
+   ========================================================================== */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.modal-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.map-modal-card {
+  width: 100%;
+  max-width: 680px;
+  height: 82vh;
+  height: 82dvh;
+  background: #181d28;
+  border-radius: 28px 28px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
+  transform: translateY(100%);
+  transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.modal-backdrop.open .map-modal-card {
+  transform: translateY(0);
+}
+
+.map-modal-header {
+  padding: 16px 20px 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.map-modal-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.map-modal-title h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.map-modal-title p {
+  font-size: 13px;
+  color: var(--text-sub);
+}
+
+.close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.close-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.close-btn:active {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* 地図描画エリア（Leaflet） */
+#leaflet-map {
+  flex: 1;
+  width: 100%;
+  background: #12151c;
+}
+
+.custom-map-pin {
+  background: none !important;
+  border: none !important;
+}
+
+.map-modal-footer {
+  padding: 14px 20px calc(var(--safe-bottom) + 14px) 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #141720;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 12px;
+}
+
+.coords-text {
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.open-gmaps-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+  transition: background 0.2s, transform 0.1s;
+}
+
+.open-gmaps-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.open-gmaps-btn:active {
+  transform: scale(0.97);
+  background: #1d4ed8;
+}
+
+/* ==========================================================================
+   設定モーダル
+   ========================================================================== */
+.settings-modal-card {
+  width: 90%;
+  max-width: 440px;
+  background: #1a1e28;
+  border-radius: 24px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+  transform: scale(0.92);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.modal-backdrop.open .settings-modal-card {
+  transform: scale(1);
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settings-header h3 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.settings-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #fff;
+  outline: none;
+  font-family: monospace;
+}
+
+.settings-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.settings-hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.4;
+}
+
+.settings-select {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #fff;
+  outline: none;
+}
+
+.settings-btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.settings-btn-secondary:active {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(0.98);
+}
+
+.settings-btn-save {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: background 0.2s;
+}
+
+.settings-btn-save:active {
+  background: #1d4ed8;
+}
+
+/* ==========================================================================
+   お気に入り（保存）機能 スタイル
+   ========================================================================== */
+
+/* 場所カード内のお気に入りボタン */
+.fav-toggle-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 6px;
+  flex-shrink: 0;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  color: #ffffff;
+}
+
+.fav-toggle-btn:active {
+  transform: scale(0.86);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.fav-toggle-btn .icon-heart {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2;
+  transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), stroke 0.2s ease, fill 0.2s ease;
+}
+
+/* 保存済み状態 */
+.fav-toggle-btn.is-favorite {
+  background: rgba(255, 59, 92, 0.24);
+  border-color: rgba(255, 59, 92, 0.55);
+}
+
+.fav-toggle-btn.is-favorite .icon-heart {
+  fill: #ff3b5c;
+  stroke: #ff3b5c;
+  animation: heartPop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes heartPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.4); }
+  75% { transform: scale(0.88); }
+  100% { transform: scale(1); }
+}
+
+/* 右上のお気に入り一覧ボタン & バッジ */
+.fav-list-btn {
+  position: relative;
+}
+
+.fav-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  background: #ff3b5c;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 17px;
+  height: 17px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid #0d1117;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+  animation: badgePop 0.3s ease;
+}
+
+@keyframes badgePop {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* 地図モーダルフッター内のお気に入りアクション */
+.map-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.modal-fav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-fav-btn:active {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.modal-fav-btn.is-favorite {
+  background: rgba(255, 59, 92, 0.2);
+  border-color: rgba(255, 59, 92, 0.5);
+  color: #ff859a;
+}
+
+.modal-fav-btn .icon-heart {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.modal-fav-btn.is-favorite .icon-heart {
+  fill: #ff3b5c;
+  stroke: #ff3b5c;
+}
+
+/* 保存した場所モーダルカード */
+.favorites-modal-card {
+  background: rgba(18, 24, 38, 0.94);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+  border-radius: 24px;
+  width: 92%;
+  max-width: 480px;
+  max-height: 82vh;
+  max-height: 82dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.favorites-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.favorites-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.favorites-title-wrap h3 {
+  font-size: 17px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.fav-modal-count {
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 2px 8px;
+  border-radius: 10px;
+  color: #93c5fd;
+}
+
+.favorites-list {
+  padding: 14px 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.fav-item {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  transition: background 0.2s ease;
+}
+
+.fav-item:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.fav-item-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.fav-item-place {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fav-item-sub {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.fav-item-date {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 3px;
+}
+
+.fav-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.fav-btn-view {
+  background: var(--accent-blue);
+  color: #ffffff;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 11px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.fav-btn-view:active {
+  opacity: 0.85;
+  transform: scale(0.95);
+}
+
+.fav-btn-gmaps {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 6px 8px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.fav-btn-gmaps svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.fav-btn-delete {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  border: none;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.fav-btn-delete:active {
+  color: #ff5252;
+}
+
+.fav-btn-delete svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.fav-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.fav-empty-icon {
+  font-size: 36px;
+  margin-bottom: 10px;
+  display: block;
+}
+
+.favorites-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.btn-clear-all {
+  background: transparent;
+  border: none;
+  color: rgba(255, 82, 82, 0.85);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.btn-clear-all:active {
+  background: rgba(255, 82, 82, 0.15);
+}
+
+/* トースト通知 */
+.toast-notification {
+  position: fixed;
+  bottom: calc(var(--safe-bottom) + 86px);
+  left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: rgba(20, 26, 40, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast-notification.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ==========================================================================
+   横置き（Landscape）対応
+   ========================================================================== */
+@media (orientation: landscape) {
+  :root {
+    --clock-size: 68px;
+  }
+
+  .clock-widget {
+    top: calc(var(--safe-top) + 8px);
+    left: calc(var(--safe-left) + 16px);
+  }
+
+  .top-controls {
+    top: calc(var(--safe-top) + 8px);
+    right: calc(var(--safe-right) + 16px);
+  }
+
+  .ui-overlay {
+    padding: calc(var(--safe-top) + 8px) calc(var(--safe-right) + 16px) calc(var(--safe-bottom) + 8px) calc(var(--safe-left) + 16px);
+  }
+
+  .map-modal-card {
+    height: 90vh;
+    height: 90dvh;
+    max-width: 85%;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .location-card {
+    padding: 10px 16px 10px 12px;
+  }
+
+  .location-detail {
+    font-size: 14px;
+  }
+}
+
+/* ==========================================================================
+   📬 未読通知ウィジェット & モーダル スタイル (Chatwork & Gmail)
+   風景の邪魔をしないミニマル・グラスモーフィズムデザイン
+   ========================================================================== */
+
+/* --- 通知ウィジェット本体 --- */
+.notify-widget {
+  pointer-events: auto;
+  position: fixed;
+  top: calc(var(--safe-top) + 14px);
+  left: calc(var(--safe-left) + 106px);
+  height: 42px;
+  min-width: 88px;
+  max-width: min(380px, calc(100vw - var(--safe-left) - var(--safe-right) - 180px));
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: 21px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  cursor: grab;
+  touch-action: none;
+  z-index: 28;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, max-width 0.3s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.notify-widget:hover {
+  background: rgba(20, 30, 48, 0.55);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.notify-widget:active {
+  background: rgba(30, 45, 70, 0.65);
+}
+
+.notify-widget.is-dragging {
+  cursor: grabbing;
+  transform: scale(1.05);
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.6);
+  transition: none !important;
+  z-index: 60 !important;
+}
+
+.notify-widget.hidden {
+  display: none !important;
+}
+
+/* アイコングループ */
+.notify-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.notify-service-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.notify-service-icon {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+
+.icon-chatwork {
+  fill: #ff5252;
+}
+
+.icon-gmail {
+  fill: #ea4335;
+}
+
+.notify-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+/* カウントバッジ */
+.notify-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  line-height: 1;
+  color: #ffffff;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 2px 5px rgba(220, 38, 38, 0.5);
+  flex-shrink: 0;
+}
+
+.notify-count-badge.zero {
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ティッカー（テロップ）領域 */
+.notify-ticker {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  padding-left: 4px;
+}
+
+.notify-ticker-text {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.02em;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.notify-ticker-text.fade-out {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.notify-ticker-text.fade-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 同期中スピナー */
+.notify-sync-spinner {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #60a5fa;
+  border-radius: 50%;
+  animation: notify-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes notify-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* --- 未読通知モーダル --- */
+.notify-modal-card {
+  position: relative;
+  width: 90%;
+  max-width: 520px;
+  max-height: 84vh;
+  max-height: 84dvh;
+  background: rgba(15, 23, 42, 0.86);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 100;
+  animation: modalSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.notify-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.notify-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notify-title-wrap h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.notify-modal-total-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.notify-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notify-refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.notify-refresh-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.notify-refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.notify-refresh-btn.rotating svg {
+  animation: notify-spin 0.8s linear infinite;
+}
+
+/* タブバー */
+.notify-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 18px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.notify-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.notify-tab-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.notify-tab-btn.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.tab-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.notify-tab-btn.active .tab-badge {
+  background: #3b82f6;
+}
+
+/* 通知リストスクロール領域 */
+.notify-list {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.notify-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.notify-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+/* 各通知カードアイテム */
+.notify-item {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.notify-item:hover {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1px);
+}
+
+.notify-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.notify-item-sender-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.notify-service-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.notify-service-tag.tag-chatwork {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.notify-service-tag.tag-gmail {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.notify-item-sender {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notify-item-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  flex-shrink: 0;
+}
+
+.notify-item-room {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.notify-item-subject {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.notify-item-body {
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.45;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.notify-item-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.notify-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.notify-open-btn:hover {
+  background: rgba(59, 130, 246, 0.3);
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.notify-open-btn svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+/* 空状態 */
+.notify-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+  gap: 12px;
+}
+
+.notify-empty-icon {
+  font-size: 40px;
+  opacity: 0.8;
+}
+
+.notify-empty-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.notify-empty-sub {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  max-width: 260px;
+}
+
+/* モーダルフッター */
+.notify-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  background: rgba(0, 0, 0, 0.25);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.notify-last-updated {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.notify-settings-link-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.notify-settings-link-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* --- 設定モーダル内追加スタイル --- */
+.settings-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 16px 0;
+}
+
+.settings-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #60a5fa;
+  margin-bottom: 12px;
+  letter-spacing: 0.02em;
+}
+
+.settings-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.settings-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.settings-checkbox-row label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.settings-gas-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.gas-instructions-card {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  padding: 14px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.6;
+}
+
+.gas-instructions-card h4 {
+  font-size: 13px;
+  color: #60a5fa;
+  margin-bottom: 8px;
+}
+
+.gas-instructions-card ol {
+  padding-left: 20px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gas-instructions-card a {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
+.gas-instructions-card code {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 11.5px;
+}
+
+/* スマホ縦置きでの微調整 */
+@media (max-width: 480px) {
+  .notify-widget {
+    left: calc(var(--safe-left) + 96px);
+    height: 38px;
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  .notify-service-icon {
+    width: 15px;
+    height: 15px;
+  }
+
+  .notify-count-badge {
+    font-size: 10px;
+    min-width: 15px;
+    height: 15px;
+  }
+
+  .notify-ticker-text {
+    font-size: 11px;
+  }
+
+  .notify-modal-card {
+    width: 95%;
+    max-height: 88vh;
+    border-radius: 20px;
+  }
+}
+
+
+</style>
+</head>
+<body>
+  <div id="app-container">
+    <!-- プログレスバー（1分間の進捗インジケーター） -->
+    <div class="progress-bar-container">
+      <div id="progress-bar-fill" class="progress-bar-fill"></div>
+    </div>
+
+    <!-- ストリートビュー表示層（360度パノラマ ＆ デモ用クロスフェード画像） -->
+    <div id="view-container" class="view-container" title="画面をタップすると地図が開きます">
+      <div id="pano-container" class="pano-container"></div>
+      <img id="view-layer-a" class="view-layer active" alt="Street View" />
+      <img id="view-layer-b" class="view-layer" alt="Street View" />
+    </div>
+
+    <!-- シーン切り替え時のフェードイン/アウト カーテン -->
+    <div id="scene-curtain" class="scene-curtain"></div>
+
+    <!-- 明度・視認性補正オーバーレイ -->
+    <div class="vignette-overlay"></div>
+
+    <!-- UIオーバーレイ層 -->
+    <div class="ui-overlay">
+      <!-- 上部バー：針時計 ＆ 操作ボタン -->
+      <div class="top-bar">
+        <!-- アナログ針時計（小さめ・秒針付き） -->
+        <div id="clock-widget" class="clock-widget" title="現在時刻">
+          <svg class="clock-svg" viewBox="0 0 100 100">
+            <!-- 文字盤 -->
+            <circle class="clock-face" cx="50" cy="50" r="46"></circle>
+            
+            <!-- 目盛り（JSで動的生成 または SVG静的配置） -->
+            <g id="clock-ticks"></g>
+
+            <!-- 時針 (12時向き初期) -->
+            <line id="hour-hand" class="clock-hand-hour" x1="50" y1="50" x2="50" y2="30"></line>
+            <!-- 分針 (12時向き初期) -->
+            <line id="minute-hand" class="clock-hand-minute" x1="50" y1="50" x2="50" y2="20"></line>
+            <!-- 秒針（アクセントレッド・12時向き初期＋お尻カウンターウェイト） -->
+            <line id="second-hand" class="clock-hand-second" x1="50" y1="58" x2="50" y2="16"></line>
+            
+            <!-- センター留めピン -->
+            <circle class="clock-center-dot" cx="50" cy="50" r="3.2"></circle>
+            <circle class="clock-center-inner" cx="50" cy="50" r="1.5"></circle>
+          </svg>
+        </div>
+
+        <!-- 通知ウィジェット（Chatwork & Gmail）: ドラッグ移動可能・風景に馴染むすりガラスピル -->
+        <div id="notify-widget" class="notify-widget" title="タップして未読詳細を表示 (ドラッグで移動可能)">
+          <div class="notify-badge-group">
+            <!-- Chatwork インジケータ -->
+            <div id="notify-cw-indicator" class="notify-service-indicator" title="Chatwork">
+              <svg class="notify-service-icon icon-chatwork" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.03 2 11c0 2.87 1.5 5.43 3.86 7.07-.15.93-.65 2.5-1.84 3.73 0 0 2.2-.14 4.14-1.48.61.12 1.25.18 1.84.18 5.52 0 10-4.03 10-9s-4.48-9-10-9z"/>
+              </svg>
+              <span id="notify-cw-badge" class="notify-count-badge" style="display:none;">0</span>
+            </div>
+
+            <div class="notify-divider"></div>
+
+            <!-- Gmail インジケータ -->
+            <div id="notify-gmail-indicator" class="notify-service-indicator" title="Gmail">
+              <svg class="notify-service-icon icon-gmail" viewBox="0 0 24 24">
+                <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+              </svg>
+              <span id="notify-gmail-badge" class="notify-count-badge" style="display:none;">0</span>
+            </div>
+          </div>
+
+          <!-- ティッカー表示エリア（未読がある時、最新1件のタイトル/送信元を1行で穏やかに表示） -->
+          <div id="notify-ticker" class="notify-ticker">
+            <span id="notify-ticker-text" class="notify-ticker-text">未読なし</span>
+          </div>
+
+          <!-- 同期中ドット -->
+          <span id="notify-sync-spinner" class="notify-sync-spinner" style="display:none;"></span>
+        </div>
+
+        <!-- 右上コントロール -->
+        <div class="top-controls">
+          <!-- 一時停止 / 再生 -->
+          <button id="btn-toggle-play" class="icon-btn" title="一時停止/再開" aria-label="一時停止/再開">
+            <svg id="icon-pause" viewBox="0 0 24 24">
+              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+            </svg>
+            <svg id="icon-play" viewBox="0 0 24 24" style="display:none;">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </button>
+
+          <!-- 次の場所へスキップ -->
+          <button id="btn-next" class="icon-btn" title="次の場所へ" aria-label="次の場所へ">
+            <svg viewBox="0 0 24 24">
+              <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+            </svg>
+          </button>
+
+          <!-- 保存した場所一覧（お気に入り） -->
+          <button id="btn-open-favorites" class="icon-btn fav-list-btn" title="保存した場所一覧" aria-label="保存した場所一覧">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+            </svg>
+            <span id="fav-badge" class="fav-badge" style="display:none;">0</span>
+          </button>
+
+          <!-- アプリ再読み込み (リロード) -->
+          <button id="btn-reload" class="icon-btn" title="最新状態に再読み込み" aria-label="再読み込み">
+            <svg viewBox="0 0 24 24">
+              <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+            </svg>
+          </button>
+
+          <!-- 設定ボタン -->
+          <button id="btn-settings" class="icon-btn" title="設定" aria-label="設定">
+            <svg viewBox="0 0 24 24">
+              <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.488.488 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 下部バー：住所カード ＆ タップヒント -->
+      <div class="bottom-bar">
+        <div class="screen-tap-guide">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+          </svg>
+          画面タップでこの場所の地図を表示
+        </div>
+
+        <div id="location-card" class="location-card" title="タップして地図を開く">
+          <div class="pin-icon-wrap">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
+          </div>
+          <div class="location-info">
+            <span id="loc-country" class="location-country">国名</span>
+            <span id="loc-detail" class="location-detail">都道府県 / 都市名</span>
+            <span class="tap-hint">
+              <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+              地図を開いて位置を確認
+            </span>
+          </div>
+
+          <!-- お気に入り（保存）ボタン -->
+          <button id="btn-fav-toggle" class="fav-toggle-btn" title="この場所をお気に入りに保存" aria-label="この場所をお気に入りに保存">
+            <svg id="icon-fav-heart" class="icon-heart" viewBox="0 0 24 24">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 地図モーダル（画面タップで表示） -->
+    <div id="map-modal-backdrop" class="modal-backdrop">
+      <div class="map-modal-card">
+        <div class="map-modal-header">
+          <div class="map-modal-title">
+            <h3 id="modal-place-title">地点の地図</h3>
+            <p id="modal-place-sub">現在表示中のストリートビューの位置</p>
+          </div>
+          <button id="btn-close-map" class="close-btn" aria-label="地図を閉じる">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+
+        <!-- Leaflet Map Container -->
+        <div id="leaflet-map"></div>
+
+        <div class="map-modal-footer">
+          <span id="modal-coords" class="coords-text">35.6586° N, 139.7454° E</span>
+          <div class="map-modal-actions">
+            <button id="btn-modal-fav" class="modal-fav-btn" type="button" title="この場所を保存">
+              <svg class="icon-heart" viewBox="0 0 24 24">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+              <span id="modal-fav-text">保存する</span>
+            </button>
+            <a id="btn-open-google-maps" href="#" target="_blank" rel="noopener noreferrer" class="open-gmaps-btn">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+              </svg>
+              Googleマップ
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 設定モーダル -->
+    <div id="settings-modal-backdrop" class="modal-backdrop">
+      <div class="settings-modal-card">
+        <div class="settings-header">
+          <h3>設定</h3>
+          <button id="btn-close-settings" class="close-btn" aria-label="設定を閉じる">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+
+        <div class="settings-group">
+          <label for="input-api-key">Google Maps API キー (任意)</label>
+          <input type="password" id="input-api-key" class="settings-input" placeholder="AIzaSy..." autocomplete="off">
+          <p class="settings-hint">
+            APIキーを入力すると、実際のGoogleストリートビュー（360度パノラマ・屋外道路探索）が表示されます。空欄時は厳選された美しい風景写真（デモモード）が表示されます。
+          </p>
+        </div>
+
+        <div class="settings-group">
+          <label for="select-interval">切り替え間隔</label>
+          <select id="select-interval" class="settings-select">
+            <option value="30">30秒</option>
+            <option value="60" selected>1分（おすすめ）</option>
+            <option value="120">2分</option>
+            <option value="300">5分</option>
+          </select>
+        </div>
+
+        <div class="settings-group">
+          <label for="select-wander-mode">探索スタイル</label>
+          <select id="select-wander-mode" class="settings-select">
+            <option value="wander" selected>未知の路地・ローカル散歩（周辺を自動探索）</option>
+            <option value="spot">厳選スポット固定（定番ポイント）</option>
+          </select>
+          <p class="settings-hint">
+            「ローカル散歩」を選ぶと、登録都市の周辺数キロ内にある何気ない路地や交差点を自動発掘し、常に新しい場所との出会いが楽しめます。
+          </p>
+        </div>
+
+        <div class="settings-divider"></div>
+        <div class="settings-section-title">📬 未読通知 (Chatwork & Gmail)</div>
+
+        <div class="settings-group">
+          <div class="settings-checkbox-row">
+            <input type="checkbox" id="check-notify-enabled" class="settings-checkbox" checked>
+            <label for="check-notify-enabled">通知ウィジェットを表示する</label>
+          </div>
+          <p class="settings-hint">画面にすりガラスの未読バッジを表示します。指でドラッグして好きな位置に配置できます。</p>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-checkbox-row">
+            <input type="checkbox" id="check-notify-ticker" class="settings-checkbox" checked>
+            <label for="check-notify-ticker">ティッカー表示（送信元・件名を1行テロップ）</label>
+          </div>
+          <p class="settings-hint">未読がある時、ウィジェット内に最新メールやメッセージを風景の邪魔にならないよう穏やかに表示します。</p>
+        </div>
+
+        <div class="settings-group">
+          <label for="select-notify-source">データ連携元</label>
+          <select id="select-notify-source" class="settings-select">
+            <option value="demo" selected>🌟 デモ表示（動作確認用サンプル）</option>
+            <option value="gas">🔗 Google Apps Script (GAS) Webアプリ連携</option>
+          </select>
+        </div>
+
+        <div id="settings-gas-url-group" class="settings-group" style="display:none;">
+          <label for="input-notify-gas-url">GAS Web App URL</label>
+          <input type="url" id="input-notify-gas-url" class="settings-input" value="https://script.google.com/macros/s/AKfycbw8Ogsccbj67RVnDV-f3aZ0UONdgH_-9bVzS8cupdmjvJXFTM9bL13u4uWDYbqCHu4wiQ/exec" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+          <div class="settings-gas-actions">
+            <button id="btn-test-gas-connection" type="button" class="settings-btn-secondary">🔗 接続テスト</button>
+            <button id="btn-show-gas-instructions" type="button" class="settings-btn-secondary">❓ GAS設定手順とコード</button>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <label for="select-notify-interval">通知チェック間隔</label>
+          <select id="select-notify-interval" class="settings-select">
+            <option value="60">1分ごと</option>
+            <option value="180" selected>3分ごと（おすすめ）</option>
+            <option value="300">5分ごと</option>
+            <option value="600">10分ごと</option>
+          </select>
+        </div>
+
+        <!-- GAS設定手順アコーディオン -->
+        <div id="gas-instructions-card" class="gas-instructions-card" style="display:none;">
+          <h4>GAS (Google Apps Script) の設定手順</h4>
+          <ol>
+            <li><strong>NotificationHub.gs</strong>（本アプリフォルダ内に同梱）の内容をコピーします。</li>
+            <li><a href="https://script.google.com" target="_blank" rel="noopener">Google Apps Script</a> で新規プロジェクトを作成し、コードを貼り付けて保存します。</li>
+            <li>Chatworkも連携する場合: GASの「プロジェクトの設定」→「スクリプトプロパティ」に <code>CHATWORK_API_TOKEN</code> を追加します。</li>
+            <li>「デプロイ」→「新しいデプロイ」→「ウェブアプリ」を選択し、アクセス権を「<strong>全員</strong>」にしてデプロイします。</li>
+            <li>発行されたWeb App URLを上の入力欄に貼り付けて保存します。</li>
+          </ol>
+          <button id="btn-copy-gas-code" type="button" class="settings-btn-secondary">📋 GASコードをクリップボードにコピー</button>
+        </div>
+
+        <div class="settings-divider"></div>
+
+        <div class="settings-group">
+          <label>ウィジェットの配置</label>
+          <button id="btn-reset-positions" type="button" class="settings-btn-secondary">時計・通知・場所カードの位置を初期化</button>
+        </div>
+
+        <div class="settings-group">
+          <label>アプリの更新（PWAキャッシュ対策）</label>
+          <button id="btn-force-reload" type="button" class="settings-btn-secondary">🔄 最新状態に再読み込み（リロード）</button>
+        </div>
+
+        <button id="btn-save-settings" class="settings-btn-save">設定を保存する</button>
+      </div>
+    </div>
+
+    <!-- 未読通知詳細モーダル（画面タップで表示） -->
+    <div id="notify-modal-backdrop" class="modal-backdrop">
+      <div class="notify-modal-card">
+        <div class="notify-header">
+          <div class="notify-title-wrap">
+            <h3>📬 未読メッセージ & メール</h3>
+            <span id="notify-modal-total-badge" class="notify-modal-total-badge">0件</span>
+          </div>
+          <div class="notify-header-actions">
+            <button id="btn-refresh-notifications" class="notify-refresh-btn" type="button" title="今すぐ再チェック" aria-label="更新">
+              <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              <span>更新</span>
+            </button>
+            <button id="btn-close-notify" class="close-btn" aria-label="閉じる">
+              <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- タブ切り替え -->
+        <div class="notify-tabs">
+          <button class="notify-tab-btn active" data-tab="all">すべて <span id="tab-badge-all" class="tab-badge">0</span></button>
+          <button class="notify-tab-btn" data-tab="chatwork">Chatwork <span id="tab-badge-cw" class="tab-badge">0</span></button>
+          <button class="notify-tab-btn" data-tab="gmail">Gmail <span id="tab-badge-gmail" class="tab-badge">0</span></button>
+        </div>
+
+        <!-- 一覧スクロール領域 -->
+        <div id="notify-list" class="notify-list">
+          <!-- JSで動的生成 -->
+        </div>
+
+        <div class="notify-footer">
+          <span id="notify-last-updated" class="notify-last-updated">未取得</span>
+          <button id="btn-open-notify-settings" class="notify-settings-link-btn" type="button">⚙️ 通知連携設定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 保存した場所（お気に入り）モーダル -->
+    <div id="favorites-modal-backdrop" class="modal-backdrop">
+      <div class="favorites-modal-card">
+        <div class="favorites-header">
+          <div class="favorites-title-wrap">
+            <h3>⭐️ 保存した場所</h3>
+            <span id="fav-modal-count" class="fav-modal-count">0件</span>
+          </div>
+          <button id="btn-close-favorites" class="close-btn" aria-label="閉じる">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+
+        <!-- お気に入り一覧スクロール領域 -->
+        <div id="favorites-list" class="favorites-list">
+          <!-- JSで動的生成 -->
+        </div>
+
+        <div class="favorites-footer">
+          <button id="btn-clear-all-favorites" class="btn-clear-all" type="button">すべて削除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- トースト通知 -->
+    <div id="toast-notification" class="toast-notification" role="status" aria-live="polite"></div>
+
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- World Locations Data -->
+  <script>
+/**
+ * 世界中のストリートビュー対応都市・地域データベース
+ * 全大陸・100カ国以上の主要都市および地方都市を網羅
+ */
+const WORLD_LOCATIONS = [
+  {"flag": "🇯🇵", "country": "日本", "region": "北海道", "city": "札幌市", "lat": 43.0618, "lng": 141.3545, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "北海道", "city": "函館市", "lat": 41.7687, "lng": 140.7288, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "北海道", "city": "旭川市", "lat": 43.7706, "lng": 142.3649, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "北海道", "city": "帯広市", "lat": 42.9239, "lng": 143.1961, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "北海道", "city": "美瑛町", "lat": 43.59, "lng": 142.46, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "青森県", "city": "青森市", "lat": 40.8244, "lng": 140.74, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "岩手県", "city": "盛岡市", "lat": 39.7036, "lng": 141.1527, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "宮城県", "city": "仙台市", "lat": 38.2682, "lng": 140.8694, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "秋田県", "city": "秋田市", "lat": 39.7186, "lng": 140.1024, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "山形県", "city": "山形市", "lat": 38.2554, "lng": 140.3396, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "福島県", "city": "会津若松市", "lat": 37.4948, "lng": 139.9297, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "東京都", "city": "台東区（浅草・谷中）", "lat": 35.7148, "lng": 139.7967, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "東京都", "city": "渋谷区", "lat": 35.658, "lng": 139.7016, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "東京都", "city": "八王子市", "lat": 35.6554, "lng": 139.3239, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "神奈川県", "city": "横浜市", "lat": 35.4437, "lng": 139.638, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "神奈川県", "city": "鎌倉市", "lat": 35.319, "lng": 139.5467, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "埼玉県", "city": "川越市", "lat": 35.9251, "lng": 139.4858, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "千葉県", "city": "銚子市", "lat": 35.7347, "lng": 140.8269, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "茨城県", "city": "水戸市", "lat": 36.3659, "lng": 140.4712, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "栃木県", "city": "日光市", "lat": 36.7554, "lng": 139.5989, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "群馬県", "city": "草津町", "lat": 36.6206, "lng": 138.596, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "新潟県", "city": "新潟市", "lat": 37.9162, "lng": 139.0364, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "富山県", "city": "富山市", "lat": 36.6959, "lng": 137.2137, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "石川県", "city": "金沢市", "lat": 36.5613, "lng": 136.6562, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "福井県", "city": "敦賀市", "lat": 35.6453, "lng": 136.0558, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "山梨県", "city": "富士河口湖町", "lat": 35.5171, "lng": 138.7518, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "長野県", "city": "松本市", "lat": 36.238, "lng": 137.972, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "長野県", "city": "南木曽町（妻籠宿）", "lat": 35.5765, "lng": 137.595, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "岐阜県", "city": "高山市", "lat": 36.1459, "lng": 137.253, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "静岡県", "city": "熱海市", "lat": 35.0963, "lng": 139.0717, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "愛知県", "city": "名古屋市", "lat": 35.1815, "lng": 136.9066, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "三重県", "city": "伊勢市", "lat": 34.4875, "lng": 136.7094, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "滋賀県", "city": "近江八幡市", "lat": 35.1285, "lng": 136.0984, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "京都府", "city": "京都市東山区", "lat": 35.0, "lng": 135.7788, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "大阪府", "city": "大阪市北区", "lat": 34.7024, "lng": 135.4959, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "兵庫県", "city": "神戸市中央区", "lat": 34.6901, "lng": 135.1955, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "奈良県", "city": "奈良市", "lat": 34.6851, "lng": 135.8048, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "和歌山県", "city": "白浜町", "lat": 33.6822, "lng": 135.3456, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "鳥取県", "city": "鳥取市", "lat": 35.5011, "lng": 134.2351, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "島根県", "city": "松江市", "lat": 35.4723, "lng": 133.0505, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "岡山県", "city": "倉敷市", "lat": 34.5953, "lng": 133.7722, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "広島県", "city": "尾道市", "lat": 34.4095, "lng": 133.197, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "山口県", "city": "萩市", "lat": 34.4082, "lng": 131.3991, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "徳島県", "city": "鳴門市", "lat": 34.1793, "lng": 134.6083, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "香川県", "city": "小豆島町", "lat": 34.4862, "lng": 134.2882, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "愛媛県", "city": "松山市", "lat": 33.8392, "lng": 132.7656, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "高知県", "city": "四万十市", "lat": 32.9904, "lng": 132.9338, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "福岡県", "city": "福岡市博多区", "lat": 33.5904, "lng": 130.4017, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "佐賀県", "city": "唐津市", "lat": 33.45, "lng": 129.9686, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "長崎県", "city": "長崎市", "lat": 32.7503, "lng": 129.8777, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "熊本県", "city": "阿蘇市", "lat": 32.9469, "lng": 131.1197, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "大分県", "city": "別府市", "lat": 33.2794, "lng": 131.5, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "宮崎県", "city": "日南市", "lat": 31.6015, "lng": 131.3789, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "鹿児島県", "city": "指宿市", "lat": 31.2354, "lng": 130.6409, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "沖縄県", "city": "那覇市", "lat": 26.2124, "lng": 127.6809, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "沖縄県", "city": "宮古島市", "lat": 24.8055, "lng": 125.2811, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇵", "country": "日本", "region": "沖縄県", "city": "石垣市", "lat": 24.3448, "lng": 124.1572, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "ニューヨーク州", "city": "ニューヨーク市", "lat": 40.7128, "lng": -74.006, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "カリフォルニア州", "city": "ロサンゼルス", "lat": 34.0522, "lng": -118.2437, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "カリフォルニア州", "city": "サンフランシスコ", "lat": 37.7749, "lng": -122.4194, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "カリフォルニア州", "city": "サンディエゴ", "lat": 32.7157, "lng": -117.1611, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "イリノイ州", "city": "シカゴ", "lat": 41.8781, "lng": -87.6298, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "テキサス州", "city": "ヒューストン", "lat": 29.7604, "lng": -95.3698, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "テキサス州", "city": "オースティン", "lat": 30.2672, "lng": -97.7431, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "テキサス州", "city": "ダラス", "lat": 32.7767, "lng": -96.797, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "ワシントン州", "city": "シアトル", "lat": 47.6062, "lng": -122.3321, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "オレゴン州", "city": "ポートランド", "lat": 45.5152, "lng": -122.6784, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "マサチューセッツ州", "city": "ボストン", "lat": 42.3601, "lng": -71.0589, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "ペンシルベニア州", "city": "フィラデルフィア", "lat": 39.9526, "lng": -75.1652, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "フロリダ州", "city": "マイアミ", "lat": 25.7617, "lng": -80.1918, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "フロリダ州", "city": "キーウェスト", "lat": 24.5551, "lng": -81.78, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "ジョージア州", "city": "アトランタ", "lat": 33.749, "lng": -84.388, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "ジョージア州", "city": "サバンナ", "lat": 32.0809, "lng": -81.0912, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "ルイジアナ州", "city": "ニューオーリンズ", "lat": 29.9511, "lng": -90.0715, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "テネシー州", "city": "ナッシュビル", "lat": 36.1627, "lng": -86.7816, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "テネシー州", "city": "メンフィス", "lat": 35.1495, "lng": -90.049, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "コロラド州", "city": "デンバー", "lat": 39.7392, "lng": -104.9903, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "コロラド州", "city": "アスペン", "lat": 39.1911, "lng": -106.8175, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "ネバダ州", "city": "ラスベガス", "lat": 36.1699, "lng": -115.1398, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "アリゾナ州", "city": "フェニックス", "lat": 33.4484, "lng": -112.074, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "アリゾナ州", "city": "セドナ", "lat": 34.8697, "lng": -111.761, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "ユタ州", "city": "ソルトレイクシティ", "lat": 40.7608, "lng": -111.891, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "ユタ州", "city": "モアブ", "lat": 38.5733, "lng": -109.5498, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "ニューメキシコ州", "city": "サンタフェ", "lat": 35.687, "lng": -105.9378, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "ハワイ州", "city": "ホノルル", "lat": 21.3069, "lng": -157.8583, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "ハワイ州", "city": "マウイ島ラハイナ", "lat": 20.8783, "lng": -156.6825, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "アラスカ州", "city": "アンカレッジ", "lat": 61.2181, "lng": -149.9003, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇸", "country": "アメリカ合衆国", "region": "アラスカ州", "city": "フェアバンクス", "lat": 64.8378, "lng": -147.7164, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇦", "country": "カナダ", "region": "オンタリオ州", "city": "トロント", "lat": 43.6532, "lng": -79.3832, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇦", "country": "カナダ", "region": "オンタリオ州", "city": "オタワ", "lat": 45.4215, "lng": -75.6972, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇦", "country": "カナダ", "region": "ケベック州", "city": "モントリオール", "lat": 45.5017, "lng": -73.5673, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇦", "country": "カナダ", "region": "ケベック州", "city": "ケベック・シティー", "lat": 46.8139, "lng": -71.208, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇦", "country": "カナダ", "region": "ブリティッシュコロンビア州", "city": "バンクーバー", "lat": 49.2827, "lng": -123.1207, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇦", "country": "カナダ", "region": "ブリティッシュコロンビア州", "city": "ビクトリア", "lat": 48.4284, "lng": -123.3656, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇦", "country": "カナダ", "region": "アルバータ州", "city": "カルガリー", "lat": 51.0447, "lng": -114.0719, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇦", "country": "カナダ", "region": "アルバータ州", "city": "バンフ", "lat": 51.1784, "lng": -115.5708, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇦", "country": "カナダ", "region": "ノバスコシア州", "city": "ハリファックス", "lat": 44.6488, "lng": -63.5752, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇲🇽", "country": "メキシコ", "region": "連邦区", "city": "メキシコシティ", "lat": 19.4326, "lng": -99.1332, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇲🇽", "country": "メキシコ", "region": "ハリスコ州", "city": "グアダラハラ", "lat": 20.6597, "lng": -103.3496, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇲🇽", "country": "メキシコ", "region": "ヌエボ・レオン州", "city": "モンテレイ", "lat": 25.6866, "lng": -100.3161, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇲🇽", "country": "メキシコ", "region": "オアハカ州", "city": "オアハカ", "lat": 17.0732, "lng": -96.7266, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇲🇽", "country": "メキシコ", "region": "グアナフアト州", "city": "サン・ミゲル・デ・アジェンデ", "lat": 20.9144, "lng": -100.7452, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇲🇽", "country": "メキシコ", "region": "キンタナ・ロー州", "city": "カンクン", "lat": 21.1619, "lng": -86.8515, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇲🇽", "country": "メキシコ", "region": "バハ・カリフォルニア州", "city": "ティフアナ", "lat": 32.5149, "lng": -117.0382, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇧🇷", "country": "ブラジル", "region": "サンパウロ州", "city": "サンパウロ", "lat": -23.5505, "lng": -46.6333, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇧🇷", "country": "ブラジル", "region": "リオデジャネイロ州", "city": "リオデジャネイロ", "lat": -22.9068, "lng": -43.1729, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇧🇷", "country": "ブラジル", "region": "バイーア州", "city": "サルヴァドール", "lat": -12.9777, "lng": -38.5016, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇧🇷", "country": "ブラジル", "region": "パラナ州", "city": "クリチバ", "lat": -25.4284, "lng": -49.2733, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇧🇷", "country": "ブラジル", "region": "アマゾナス州", "city": "マナウス", "lat": -3.119, "lng": -60.0217, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇷", "country": "アルゼンチン", "region": "連邦特別区", "city": "ブエノスアイレス", "lat": -34.6037, "lng": -58.3816, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇷", "country": "アルゼンチン", "region": "コルドバ州", "city": "コルドバ", "lat": -31.4201, "lng": -64.1888, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇷", "country": "アルゼンチン", "region": "メンドーサ州", "city": "メンドーサ", "lat": -32.8895, "lng": -68.8458, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇷", "country": "アルゼンチン", "region": "リオネグロ州", "city": "バリローチェ", "lat": -41.1335, "lng": -71.3103, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇷", "country": "アルゼンチン", "region": "ティエラ・デル・フエゴ州", "city": "ウシュアイア", "lat": -54.8019, "lng": -68.303, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇱", "country": "チリ", "region": "首都州", "city": "サンティアゴ", "lat": -33.4489, "lng": -70.6693, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇱", "country": "チリ", "region": "バルパライソ州", "city": "バルパライソ", "lat": -33.0472, "lng": -71.6127, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇱", "country": "チリ", "region": "マガジャネス州", "city": "プンタ・アレナス", "lat": -53.1638, "lng": -70.9171, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇴", "country": "コロンビア", "region": "クンディナマルカ県", "city": "ボゴタ", "lat": 4.711, "lng": -74.0721, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇴", "country": "コロンビア", "region": "アンティオキア県", "city": "メデジン", "lat": 6.2442, "lng": -75.5812, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇴", "country": "コロンビア", "region": "ボリーバル県", "city": "カルタヘナ", "lat": 10.391, "lng": -75.4794, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇵🇪", "country": "ペルー", "region": "リマ県", "city": "リマ", "lat": -12.0464, "lng": -77.0428, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇵🇪", "country": "ペルー", "region": "クスコ県", "city": "クスコ", "lat": -13.5319, "lng": -71.9675, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇵🇪", "country": "ペルー", "region": "アレキパ県", "city": "アレキパ", "lat": -16.409, "lng": -71.5375, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇾", "country": "ウルグアイ", "region": "モンテビデオ県", "city": "モンテビデオ", "lat": -34.9011, "lng": -56.1645, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇪🇨", "country": "エクアドル", "region": "ピチンチャ県", "city": "キト", "lat": -0.1807, "lng": -78.4678, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇧🇴", "country": "ボリビア", "region": "ラパス県", "city": "ラパス", "lat": -16.5, "lng": -68.15, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇧", "country": "イギリス", "region": "イングランド", "city": "ロンドン", "lat": 51.5074, "lng": -0.1278, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇧", "country": "イギリス", "region": "イングランド", "city": "マンチェスター", "lat": 53.4808, "lng": -2.2426, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇧", "country": "イギリス", "region": "イングランド", "city": "バーミンガム", "lat": 52.4862, "lng": -1.8904, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇧", "country": "イギリス", "region": "イングランド", "city": "リバプール", "lat": 53.4084, "lng": -2.9916, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇧", "country": "イギリス", "region": "イングランド", "city": "ブリストル", "lat": 51.4545, "lng": -2.5879, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇧", "country": "イギリス", "region": "イングランド", "city": "オックスフォード", "lat": 51.752, "lng": -1.2577, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇧", "country": "イギリス", "region": "イングランド", "city": "ケンブリッジ", "lat": 52.2053, "lng": 0.1218, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇧", "country": "イギリス", "region": "イングランド", "city": "ヨーク", "lat": 53.96, "lng": -1.0873, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇧", "country": "イギリス", "region": "スコットランド", "city": "エディンバラ", "lat": 55.9533, "lng": -3.1883, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇧", "country": "イギリス", "region": "スコットランド", "city": "グラスゴー", "lat": 55.8642, "lng": -4.2518, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇧", "country": "イギリス", "region": "ウェールズ", "city": "カーディフ", "lat": 51.4816, "lng": -3.1791, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇧", "country": "イギリス", "region": "北アイルランド", "city": "ベルファスト", "lat": 54.5973, "lng": -5.9301, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇪", "country": "アイルランド", "region": "レンスター", "city": "ダブリン", "lat": 53.3498, "lng": -6.2603, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇪", "country": "アイルランド", "region": "マンスター", "city": "コーク", "lat": 51.8985, "lng": -8.4756, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇪", "country": "アイルランド", "region": "コノート", "city": "ゴールウェイ", "lat": 53.2707, "lng": -9.0568, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇫🇷", "country": "フランス", "region": "イル＝ド＝フランス", "city": "パリ", "lat": 48.8566, "lng": 2.3522, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇫🇷", "country": "フランス", "region": "プロヴァンス", "city": "マルセイユ", "lat": 43.2965, "lng": 5.3698, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇫🇷", "country": "フランス", "region": "コート・ダジュール", "city": "ニース", "lat": 43.7102, "lng": 7.262, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇫🇷", "country": "フランス", "region": "オーヴェルニュ＝ローヌ＝アルプ", "city": "リヨン", "lat": 45.764, "lng": 4.8357, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇫🇷", "country": "フランス", "region": "オクシタニー", "city": "トゥールーズ", "lat": 43.6047, "lng": 1.4442, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇫🇷", "country": "フランス", "region": "ヌーヴェル＝アキテーヌ", "city": "ボルドー", "lat": 44.8378, "lng": -0.5792, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇫🇷", "country": "フランス", "region": "グラン・テスト", "city": "ストラスブール", "lat": 48.5734, "lng": 7.7521, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇫🇷", "country": "フランス", "region": "ブルターニュ", "city": "レンヌ", "lat": 48.1173, "lng": -1.6778, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇫🇷", "country": "フランス", "region": "オー＝ド＝フランス", "city": "リール", "lat": 50.6292, "lng": 3.0573, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇩🇪", "country": "ドイツ", "region": "ベルリン", "city": "ベルリン", "lat": 52.52, "lng": 13.405, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇩🇪", "country": "ドイツ", "region": "バイエルン州", "city": "ミュンヘン", "lat": 48.1351, "lng": 11.582, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇩🇪", "country": "ドイツ", "region": "ハンブルク", "city": "ハンブルク", "lat": 53.5511, "lng": 9.9937, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇩🇪", "country": "ドイツ", "region": "ノルトライン＝ヴェストファーレン州", "city": "ケルン", "lat": 50.9375, "lng": 6.9603, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇩🇪", "country": "ドイツ", "region": "ヘッセン州", "city": "フランクフルト", "lat": 50.1109, "lng": 8.6821, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇩🇪", "country": "ドイツ", "region": "バーデン＝ヴュルテンベルク州", "city": "シュトゥットガルト", "lat": 48.7758, "lng": 9.1829, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇩🇪", "country": "ドイツ", "region": "バーデン＝ヴュルテンベルク州", "city": "ハイデルベルク", "lat": 49.3988, "lng": 8.6724, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇩🇪", "country": "ドイツ", "region": "ザクセン州", "city": "ドレスデン", "lat": 51.0504, "lng": 13.7373, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇩🇪", "country": "ドイツ", "region": "ザクセン州", "city": "ライプツィヒ", "lat": 51.3397, "lng": 12.3731, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇹", "country": "イタリア", "region": "ラツィオ州", "city": "ローマ", "lat": 41.9028, "lng": 12.4964, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇹", "country": "イタリア", "region": "ロンバルディア州", "city": "ミラノ", "lat": 45.4642, "lng": 9.19, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇹", "country": "イタリア", "region": "カンパニア州", "city": "ナポリ", "lat": 40.8518, "lng": 14.2681, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇹", "country": "イタリア", "region": "トスカーナ州", "city": "フィレンツェ", "lat": 43.7696, "lng": 11.2558, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇹", "country": "イタリア", "region": "トスカーナ州", "city": "シエーナ", "lat": 43.3188, "lng": 11.3308, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇹", "country": "イタリア", "region": "ヴェネト州", "city": "ヴェネツィア", "lat": 45.4408, "lng": 12.3155, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇹", "country": "イタリア", "region": "ピエモンテ州", "city": "トリノ", "lat": 45.0703, "lng": 7.6869, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇹", "country": "イタリア", "region": "エミリア＝ロマーニャ州", "city": "ボローニャ", "lat": 44.4949, "lng": 11.3426, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇹", "country": "イタリア", "region": "リグーリア州", "city": "ジェノヴァ", "lat": 44.4056, "lng": 8.9463, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇹", "country": "イタリア", "region": "シチリア州", "city": "パレルモ", "lat": 38.1157, "lng": 13.3615, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇹", "country": "イタリア", "region": "サルデーニャ州", "city": "カリャリ", "lat": 39.2238, "lng": 9.1217, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇪🇸", "country": "スペイン", "region": "マドリード州", "city": "マドリード", "lat": 40.4168, "lng": -3.7038, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇪🇸", "country": "スペイン", "region": "カタルーニャ州", "city": "バルセロナ", "lat": 41.3851, "lng": 2.1734, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇪🇸", "country": "スペイン", "region": "アンダルシア州", "city": "セビリア", "lat": 37.3891, "lng": -5.9845, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇪🇸", "country": "スペイン", "region": "アンダルシア州", "city": "グラナダ", "lat": 37.1773, "lng": -3.5986, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇪🇸", "country": "スペイン", "region": "アンダルシア州", "city": "コルドバ", "lat": 37.8882, "lng": -4.7794, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇪🇸", "country": "スペイン", "region": "バレンシア州", "city": "バレンシア", "lat": 39.4699, "lng": -0.3763, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇪🇸", "country": "スペイン", "region": "バスク州", "city": "ビルバオ", "lat": 43.263, "lng": -2.935, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇪🇸", "country": "スペイン", "region": "バスク州", "city": "サン・セバスティアン", "lat": 43.3183, "lng": -1.9812, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇪🇸", "country": "スペイン", "region": "ガリシア州", "city": "サンティアゴ・デ・コンポステーラ", "lat": 42.8782, "lng": -8.5448, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇪🇸", "country": "スペイン", "region": "バレアレス諸島", "city": "パルマ・デ・マヨルカ", "lat": 39.5696, "lng": 2.6502, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇵🇹", "country": "ポルトガル", "region": "リスボン県", "city": "リスボン", "lat": 38.7223, "lng": -9.1393, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇵🇹", "country": "ポルトガル", "region": "ポルト県", "city": "ポルト", "lat": 41.1579, "lng": -8.6291, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇵🇹", "country": "ポルトガル", "region": "コインブラ県", "city": "コインブラ", "lat": 40.2033, "lng": -8.4103, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇵🇹", "country": "ポルトガル", "region": "アルガルヴェ地方", "city": "ファーロ", "lat": 37.0194, "lng": -7.9322, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇱", "country": "オランダ", "region": "北ホラント州", "city": "アムステルダム", "lat": 52.3676, "lng": 4.9041, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇱", "country": "オランダ", "region": "南ホラント州", "city": "ロッテルダム", "lat": 51.9244, "lng": 4.4777, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇱", "country": "オランダ", "region": "南ホラント州", "city": "デン・ハーグ", "lat": 52.0705, "lng": 4.3007, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇱", "country": "オランダ", "region": "ユトレヒト州", "city": "ユトレヒト", "lat": 52.0907, "lng": 5.1214, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇧🇪", "country": "ベルギー", "region": "ブリュッセル首都圏", "city": "ブリュッセル", "lat": 50.8503, "lng": 4.3517, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇧🇪", "country": "ベルギー", "region": "フランデレン地域", "city": "アントワープ", "lat": 51.2194, "lng": 4.4025, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇧🇪", "country": "ベルギー", "region": "フランデレン地域", "city": "ブルッヘ", "lat": 51.2093, "lng": 3.2247, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇧🇪", "country": "ベルギー", "region": "フランデレン地域", "city": "ヘント", "lat": 51.0543, "lng": 3.7174, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇭", "country": "スイス", "region": "チューリッヒ州", "city": "チューリッヒ", "lat": 47.3769, "lng": 8.5417, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇭", "country": "スイス", "region": "ジュネーヴ州", "city": "ジュネーヴ", "lat": 46.2044, "lng": 6.1432, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇭", "country": "スイス", "region": "ベルン州", "city": "ベルン", "lat": 46.948, "lng": 7.4474, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇭", "country": "スイス", "region": "ルツェルン州", "city": "ルツェルン", "lat": 47.0502, "lng": 8.3093, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇭", "country": "スイス", "region": "ティチーノ州", "city": "ルガーノ", "lat": 46.0037, "lng": 8.9511, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇹", "country": "オーストリア", "region": "ウィーン", "city": "ウィーン", "lat": 48.2082, "lng": 16.3738, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇹", "country": "オーストリア", "region": "ザルツブルク州", "city": "ザルツブルク", "lat": 47.8095, "lng": 13.055, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇹", "country": "オーストリア", "region": "チロル州", "city": "インスブルック", "lat": 47.2692, "lng": 11.4041, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇹", "country": "オーストリア", "region": "シュタイアーマルク州", "city": "グラーツ", "lat": 47.0707, "lng": 15.4395, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇴", "country": "ノルウェー", "region": "オスロ", "city": "オスロ", "lat": 59.9139, "lng": 10.7522, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇴", "country": "ノルウェー", "region": "ヴェストラン県", "city": "ベルゲン", "lat": 60.3913, "lng": 5.3221, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇴", "country": "ノルウェー", "region": "トロンデラーグ県", "city": "トロンハイム", "lat": 63.4305, "lng": 10.3951, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇴", "country": "ノルウェー", "region": "トロムス・オ・フィンマルク県", "city": "トロムソ", "lat": 69.6492, "lng": 18.9553, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇸🇪", "country": "スウェーデン", "region": "ストックホルム県", "city": "ストックホルム", "lat": 59.3293, "lng": 18.0686, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇸🇪", "country": "スウェーデン", "region": "ヴェストラ・イェータランド県", "city": "ヨーテボリ", "lat": 57.7089, "lng": 11.9746, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇸🇪", "country": "スウェーデン", "region": "スコーネ県", "city": "マルメ", "lat": 55.605, "lng": 13.0038, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇫🇮", "country": "フィンランド", "region": "ウーシマー県", "city": "ヘルシンキ", "lat": 60.1699, "lng": 24.9384, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇫🇮", "country": "フィンランド", "region": "ピルカンマー県", "city": "タンペレ", "lat": 61.4978, "lng": 23.761, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇫🇮", "country": "フィンランド", "region": "ラッピ県", "city": "ロヴァニエミ", "lat": 66.5039, "lng": 25.7294, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇩🇰", "country": "デンマーク", "region": "首都地域", "city": "コペンハーゲン", "lat": 55.6761, "lng": 12.5683, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇩🇰", "country": "デンマーク", "region": "中央ユラン地域", "city": "オールフス", "lat": 56.1629, "lng": 10.2039, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇸", "country": "アイスランド", "region": "大レイキャヴィーク", "city": "レイキャビク", "lat": 64.1466, "lng": -21.9426, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇸", "country": "アイスランド", "region": "北部地域", "city": "アークレイリ", "lat": 65.6835, "lng": -18.1059, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇵🇱", "country": "ポーランド", "region": "マゾフシェ県", "city": "ワルシャワ", "lat": 52.2297, "lng": 21.0122, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇵🇱", "country": "ポーランド", "region": "マウォポルスカ県", "city": "クラクフ", "lat": 50.0647, "lng": 19.945, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇵🇱", "country": "ポーランド", "region": "ドルヌィ・シロンスク県", "city": "ヴロツワフ", "lat": 51.1079, "lng": 17.0385, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇵🇱", "country": "ポーランド", "region": "ポモージェ県", "city": "グダニスク", "lat": 54.352, "lng": 18.6466, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇿", "country": "チェコ", "region": "プラハ", "city": "プラハ", "lat": 50.0755, "lng": 14.4378, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇿", "country": "チェコ", "region": "南モラヴィア州", "city": "ブルノ", "lat": 49.1951, "lng": 16.6068, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇨🇿", "country": "チェコ", "region": "カルロヴィ・ヴァリ州", "city": "カルロヴィ・ヴァリ", "lat": 50.2305, "lng": 12.8711, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇸🇰", "country": "スロバキア", "region": "ブラチスラヴァ県", "city": "ブラチスラヴァ", "lat": 48.1486, "lng": 17.1077, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇭🇺", "country": "ハンガリー", "region": "ペシュト県", "city": "ブダペスト", "lat": 47.4979, "lng": 19.0402, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇷", "country": "ギリシャ", "region": "アッティカ地方", "city": "アテネ", "lat": 37.9838, "lng": 23.7275, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇷", "country": "ギリシャ", "region": "中央マケドニア地方", "city": "テッサロニキ", "lat": 40.6401, "lng": 22.9444, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇷", "country": "ギリシャ", "region": "クレタ島", "city": "イラクリオン", "lat": 35.3387, "lng": 25.1442, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇭🇷", "country": "クロアチア", "region": "ザグレブ", "city": "ザグレブ", "lat": 45.815, "lng": 15.9819, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇭🇷", "country": "クロアチア", "region": "スプリト＝ダルマチア郡", "city": "スプリト", "lat": 43.5081, "lng": 16.4402, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇭🇷", "country": "クロアチア", "region": "ドゥブロヴニク＝ネレトヴァ郡", "city": "ドゥブロヴニク", "lat": 42.6507, "lng": 18.0944, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇸🇮", "country": "スロベニア", "region": "中央スロベニア地方", "city": "リュブリャナ", "lat": 46.0569, "lng": 14.5058, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇪🇪", "country": "エストニア", "region": "ハリュ県", "city": "タリン", "lat": 59.437, "lng": 24.7535, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇱🇻", "country": "ラトビア", "region": "リガ", "city": "リガ", "lat": 56.9496, "lng": 24.1052, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇱🇹", "country": "リトアニア", "region": "ヴィリニュス郡", "city": "ヴィリニュス", "lat": 54.6872, "lng": 25.2797, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇷🇴", "country": "ルーマニア", "region": "ブカレスト", "city": "ブカレスト", "lat": 44.4268, "lng": 26.1025, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇷🇴", "country": "ルーマニア", "region": "クルジュ県", "city": "クルジュ＝ナポカ", "lat": 46.7712, "lng": 23.6236, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇷🇴", "country": "ルーマニア", "region": "ブラショフ県", "city": "ブラショフ", "lat": 45.6579, "lng": 25.6012, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇧🇬", "country": "ブルガリア", "region": "ソフィア都市圏", "city": "ソフィア", "lat": 42.6977, "lng": 23.3219, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇧🇬", "country": "ブルガリア", "region": "プロヴディフ州", "city": "プロヴディフ", "lat": 42.1354, "lng": 24.7453, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇷🇸", "country": "セルビア", "region": "ベオグラード", "city": "ベオグラード", "lat": 44.7866, "lng": 20.4489, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇰🇷", "country": "韓国", "region": "ソウル特別市", "city": "ソウル", "lat": 37.5665, "lng": 126.978, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇰🇷", "country": "韓国", "region": "釜山広域市", "city": "釜山", "lat": 35.1796, "lng": 129.0756, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇰🇷", "country": "韓国", "region": "仁川広域市", "city": "仁川", "lat": 37.4563, "lng": 126.7052, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇰🇷", "country": "韓国", "region": "大邱広域市", "city": "大邱", "lat": 35.8714, "lng": 128.6014, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇰🇷", "country": "韓国", "region": "済州特別自治道", "city": "西帰浦市", "lat": 33.2541, "lng": 126.5601, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇼", "country": "台湾", "region": "台北市", "city": "台北", "lat": 25.033, "lng": 121.5654, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇼", "country": "台湾", "region": "新北市", "city": "九份", "lat": 25.1099, "lng": 121.8452, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇼", "country": "台湾", "region": "高雄市", "city": "高雄", "lat": 22.6273, "lng": 120.3014, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇼", "country": "台湾", "region": "台中市", "city": "台中", "lat": 24.1477, "lng": 120.6736, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇼", "country": "台湾", "region": "台南市", "city": "台南", "lat": 22.9997, "lng": 120.227, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇼", "country": "台湾", "region": "花蓮県", "city": "花蓮", "lat": 23.9872, "lng": 121.6016, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇭", "country": "タイ", "region": "バンコク", "city": "バンコク", "lat": 13.7563, "lng": 100.5018, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇭", "country": "タイ", "region": "チェンマイ県", "city": "チェンマイ", "lat": 18.7883, "lng": 98.9853, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇭", "country": "タイ", "region": "プーケット県", "city": "プーケット", "lat": 7.8804, "lng": 98.3923, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇭", "country": "タイ", "region": "チョンブリー県", "city": "パタヤ", "lat": 12.9236, "lng": 100.8825, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇭", "country": "タイ", "region": "アユタヤ県", "city": "アユタヤ", "lat": 14.3532, "lng": 100.5684, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇲🇾", "country": "マレーシア", "region": "クアラルンプール", "city": "クアラルンプール", "lat": 3.139, "lng": 101.6869, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇲🇾", "country": "マレーシア", "region": "ペナン州", "city": "ジョージタウン", "lat": 5.4141, "lng": 100.3288, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇲🇾", "country": "マレーシア", "region": "マラッカ州", "city": "マラッカ", "lat": 2.1896, "lng": 102.2501, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇲🇾", "country": "マレーシア", "region": "サバ州", "city": "コタキナバル", "lat": 5.9804, "lng": 116.0735, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇸🇬", "country": "シンガポール", "region": "中央地域", "city": "シンガポール", "lat": 1.3521, "lng": 103.8198, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇩", "country": "インドネシア", "region": "ジャカルタ", "city": "ジャカルタ", "lat": -6.2088, "lng": 106.8456, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇩", "country": "インドネシア", "region": "西ジャワ州", "city": "バンドン", "lat": -6.9175, "lng": 107.6191, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇩", "country": "インドネシア", "region": "バリ州", "city": "ウブド", "lat": -8.5069, "lng": 115.2625, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇩", "country": "インドネシア", "region": "ジョグジャカルタ", "city": "ジョグジャカルタ", "lat": -7.7956, "lng": 110.3695, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇵🇭", "country": "フィリピン", "region": "首都圏", "city": "マニラ", "lat": 14.5995, "lng": 120.9842, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇵🇭", "country": "フィリピン", "region": "セブ州", "city": "セブ市", "lat": 10.3157, "lng": 123.8854, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇻🇳", "country": "ベトナム", "region": "ハノイ", "city": "ハノイ", "lat": 21.0285, "lng": 105.8542, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇻🇳", "country": "ベトナム", "region": "ホーチミン市", "city": "ホーチミン", "lat": 10.8231, "lng": 106.6297, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇻🇳", "country": "ベトナム", "region": "ダナン", "city": "ダナン", "lat": 16.0544, "lng": 108.2022, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇳", "country": "インド", "region": "デリー首都圏", "city": "ニューデリー", "lat": 28.6139, "lng": 77.209, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇳", "country": "インド", "region": "マハーラーシュトラ州", "city": "ムンバイ", "lat": 19.076, "lng": 72.8777, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇳", "country": "インド", "region": "カルナータカ州", "city": "ベンガルール", "lat": 12.9716, "lng": 77.5946, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇳", "country": "インド", "region": "ラージャスターン州", "city": "ジャイプル", "lat": 26.9124, "lng": 75.7873, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇳", "country": "インド", "region": "ウッタル・プラデーシュ州", "city": "ヴァーラーナシー", "lat": 25.3176, "lng": 82.9739, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇱🇰", "country": "スリランカ", "region": "西部州", "city": "コロンボ", "lat": 6.9271, "lng": 79.8612, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇱🇰", "country": "スリランカ", "region": "中部州", "city": "キャンディ", "lat": 7.2906, "lng": 80.6337, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇲🇳", "country": "モンゴル", "region": "ウランバートル", "city": "ウランバートル", "lat": 47.9188, "lng": 106.9176, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇰🇭", "country": "カンボジア", "region": "プノンペン", "city": "プノンペン", "lat": 11.5564, "lng": 104.9282, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇰🇭", "country": "カンボジア", "region": "シェムリアップ州", "city": "シェムリアップ", "lat": 13.3671, "lng": 103.8448, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇺", "country": "オーストラリア", "region": "ニューサウスウェールズ州", "city": "シドニー", "lat": -33.8688, "lng": 151.2093, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇺", "country": "オーストラリア", "region": "ビクトリア州", "city": "メルボルン", "lat": -37.8136, "lng": 144.9631, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇺", "country": "オーストラリア", "region": "クイーンズランド州", "city": "ブリスベン", "lat": -27.4698, "lng": 153.0251, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇺", "country": "オーストラリア", "region": "クイーンズランド州", "city": "ゴールドコースト", "lat": -28.0167, "lng": 153.4, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇺", "country": "オーストラリア", "region": "西オーストラリア州", "city": "パース", "lat": -31.9505, "lng": 115.8605, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇺", "country": "オーストラリア", "region": "南オーストラリア州", "city": "アデレード", "lat": -34.9285, "lng": 138.6007, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇺", "country": "オーストラリア", "region": "タスマニア州", "city": "ホバート", "lat": -42.8821, "lng": 147.3272, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇺", "country": "オーストラリア", "region": "ノーザンテリトリー", "city": "ダーウィン", "lat": -12.4634, "lng": 130.8456, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇺", "country": "オーストラリア", "region": "ノーザンテリトリー", "city": "アリススプリングス", "lat": -23.698, "lng": 133.8807, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇿", "country": "ニュージーランド", "region": "オークランド地方", "city": "オークランド", "lat": -36.8485, "lng": 174.7633, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇿", "country": "ニュージーランド", "region": "ウェリントン地方", "city": "ウェリントン", "lat": -41.2865, "lng": 174.7762, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇿", "country": "ニュージーランド", "region": "カンタベリー地方", "city": "クライストチャーチ", "lat": -43.5321, "lng": 172.6362, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇿", "country": "ニュージーランド", "region": "オタゴ地方", "city": "クイーンズタウン", "lat": -45.0312, "lng": 168.6626, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇷", "country": "トルコ", "region": "イスタンブール県", "city": "イスタンブール", "lat": 41.0082, "lng": 28.9784, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇷", "country": "トルコ", "region": "アンカラ県", "city": "アンカラ", "lat": 39.9334, "lng": 32.8597, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇷", "country": "トルコ", "region": "イズミル県", "city": "イズミル", "lat": 38.4237, "lng": 27.1428, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇷", "country": "トルコ", "region": "アンタルヤ県", "city": "アンタルヤ", "lat": 36.8969, "lng": 30.7133, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇷", "country": "トルコ", "region": "ネヴシェヒル県", "city": "カッパドキア（ギョレメ）", "lat": 38.6431, "lng": 34.8289, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇪", "country": "アラブ首長国連邦", "region": "ドバイ首長国", "city": "ドバイ", "lat": 25.2048, "lng": 55.2708, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇦🇪", "country": "アラブ首長国連邦", "region": "アブダビ首長国", "city": "アブダビ", "lat": 24.4539, "lng": 54.3773, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇱", "country": "イスラエル", "region": "エルサレム地区", "city": "エルサレム", "lat": 31.7683, "lng": 35.2137, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇮🇱", "country": "イスラエル", "region": "テルアビブ地区", "city": "テルアビブ", "lat": 32.0853, "lng": 34.7818, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇴", "country": "ヨルダン", "region": "アンマン県", "city": "アンマン", "lat": 31.9454, "lng": 35.9284, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇯🇴", "country": "ヨルダン", "region": "マアーン県", "city": "ペトラ", "lat": 30.3285, "lng": 35.4444, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇴🇲", "country": "オマーン", "region": "マスカット特別行政区", "city": "マスカット", "lat": 23.588, "lng": 58.3829, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇶🇦", "country": "カタール", "region": "ドーハ", "city": "ドーハ", "lat": 25.2854, "lng": 51.531, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇿🇦", "country": "南アフリカ", "region": "西ケープ州", "city": "ケープタウン", "lat": -33.9249, "lng": 18.4241, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇿🇦", "country": "南アフリカ", "region": "ハウテン州", "city": "ヨハネスブルグ", "lat": -26.2041, "lng": 28.0473, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇿🇦", "country": "南アフリカ", "region": "クワズール・ナタール州", "city": "ダーバン", "lat": -29.8587, "lng": 31.0218, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇿🇦", "country": "南アフリカ", "region": "西ケープ州", "city": "ステレンボッシュ", "lat": -33.9321, "lng": 18.8602, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇰🇪", "country": "ケニア", "region": "ナイロビ郡", "city": "ナイロビ", "lat": -1.2921, "lng": 36.8219, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇰🇪", "country": "ケニア", "region": "モンバサ郡", "city": "モンバサ", "lat": -4.0435, "lng": 39.6682, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇬", "country": "ナイジェリア", "region": "ラゴス州", "city": "ラゴス", "lat": 6.5244, "lng": 3.3792, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇳🇬", "country": "ナイジェリア", "region": "連邦首都地区", "city": "アブジャ", "lat": 9.0765, "lng": 7.3986, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇬🇭", "country": "ガーナ", "region": "グレーター・アクラ州", "city": "アクラ", "lat": 5.6037, "lng": -0.187, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇸🇳", "country": "セネガル", "region": "ダカール州", "city": "ダカール", "lat": 14.7167, "lng": -17.4677, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇧🇼", "country": "ボツワナ", "region": "南東部地区", "city": "ハボローネ", "lat": -24.6282, "lng": 25.9231, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇺🇬", "country": "ウガンダ", "region": "カンパラ県", "city": "カンパラ", "lat": 0.3476, "lng": 32.5825, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇷🇼", "country": "ルワンダ", "region": "キガリ市", "city": "キガリ", "lat": -1.9441, "lng": 30.0619, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"},
+  {"flag": "🇹🇳", "country": "チュニジア", "region": "チュニス県", "city": "チュニス", "lat": 36.8065, "lng": 10.1815, "demoImage": "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"}
+];
+
+</script>
+  <!-- Main Application Logic -->
+  <script>
+/**
+ * ランダム世界ストリートビュー - メインアプリケーション
+ */
+
+(function () {
+  'use strict';
+
+  // --- 定数 & 状態 ---
+  const STORAGE_KEY_API_KEY = 'random_streetview_api_key';
+  const STORAGE_KEY_INTERVAL = 'random_streetview_interval';
+  const STORAGE_KEY_WANDER_MODE = 'random_streetview_wander_mode';
+  const STORAGE_KEY_FAVORITES = 'random_streetview_favorites_v1';
+  const STORAGE_KEY_NOTIFY_ENABLED = 'random_sv_notify_enabled';
+  const STORAGE_KEY_NOTIFY_TICKER = 'random_sv_notify_ticker';
+  const STORAGE_KEY_NOTIFY_SOURCE = 'random_sv_notify_source';
+  const STORAGE_KEY_NOTIFY_GAS_URL = 'random_sv_notify_gas_url';
+  const STORAGE_KEY_NOTIFY_INTERVAL = 'random_sv_notify_interval';
+  const STORAGE_KEY_NOTIFY_POS = 'random_sv_notify_pos';
+
+  let apiKey = localStorage.getItem(STORAGE_KEY_API_KEY) || '';
+  let intervalSeconds = parseInt(localStorage.getItem(STORAGE_KEY_INTERVAL) || '60', 10);
+  let wanderMode = localStorage.getItem(STORAGE_KEY_WANDER_MODE) || 'wander';
+  let favoritesList = [];
+
+  // 通知機能の状態
+  let notifyEnabled = localStorage.getItem(STORAGE_KEY_NOTIFY_ENABLED) !== 'false';
+  let notifyTickerEnabled = localStorage.getItem(STORAGE_KEY_NOTIFY_TICKER) !== 'false';
+  let notifySource = localStorage.getItem(STORAGE_KEY_NOTIFY_SOURCE) || 'demo'; // 'demo' | 'gas'
+  const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbw8Ogsccbj67RVnDV-f3aZ0UONdgH_-9bVzS8cupdmjvJXFTM9bL13u4uWDYbqCHu4wiQ/exec';
+  let notifyGasUrl = localStorage.getItem(STORAGE_KEY_NOTIFY_GAS_URL) || DEFAULT_GAS_URL;
+  let notifyIntervalSeconds = parseInt(localStorage.getItem(STORAGE_KEY_NOTIFY_INTERVAL) || '180', 10);
+
+  let notifyData = {
+    chatwork: { unread_count: 0, items: [] },
+    gmail: { unread_count: 0, items: [] }
+  };
+  let notifyTimerId = null;
+  let notifyTickerTimerId = null;
+  let currentTickerItems = [];
+  let currentTickerIndex = 0;
+  let notifyActiveTab = 'all'; // 'all' | 'chatwork' | 'gmail'
+  let lastNotifyFetchTime = null;
+
+  let isPaused = false;
+  let remainingSeconds = intervalSeconds;
+  let timerIntervalId = null;
+  let currentLocation = null;
+  let locationQueue = [];
+  let currentLayer = 'a'; // 'a' or 'b'
+  let leafletMap = null;
+  let currentMarker = null;
+  let isTransitioning = false;
+
+  // --- DOM要素キャッシュ ---
+  const viewContainer = document.getElementById('view-container');
+  const sceneCurtain = document.getElementById('scene-curtain');
+  const layerA = document.getElementById('view-layer-a');
+  const layerB = document.getElementById('view-layer-b');
+  const progressFill = document.getElementById('progress-bar-fill');
+
+  const locCard = document.getElementById('location-card');
+  const locCountry = document.getElementById('loc-country');
+  const locDetail = document.getElementById('loc-detail');
+  const btnFavToggle = document.getElementById('btn-fav-toggle');
+
+  const hourHand = document.getElementById('hour-hand');
+  const minuteHand = document.getElementById('minute-hand');
+  const secondHand = document.getElementById('second-hand');
+  const clockTicksGroup = document.getElementById('clock-ticks');
+
+  // 通知ウィジェット DOM
+  const notifyWidget = document.getElementById('notify-widget');
+  const notifyCwBadge = document.getElementById('notify-cw-badge');
+  const notifyGmailBadge = document.getElementById('notify-gmail-badge');
+  const notifyTicker = document.getElementById('notify-ticker');
+  const notifyTickerText = document.getElementById('notify-ticker-text');
+  const notifySyncSpinner = document.getElementById('notify-sync-spinner');
+
+  // 通知詳細モーダル DOM
+  const notifyModal = document.getElementById('notify-modal-backdrop');
+  const btnCloseNotify = document.getElementById('btn-close-notify');
+  const btnRefreshNotify = document.getElementById('btn-refresh-notifications');
+  const notifyModalTotalBadge = document.getElementById('notify-modal-total-badge');
+  const tabBadgeAll = document.getElementById('tab-badge-all');
+  const tabBadgeCw = document.getElementById('tab-badge-cw');
+  const tabBadgeGmail = document.getElementById('tab-badge-gmail');
+  const notifyList = document.getElementById('notify-list');
+  const notifyLastUpdated = document.getElementById('notify-last-updated');
+  const btnOpenNotifySettings = document.getElementById('btn-open-notify-settings');
+
+  // 設定モーダル内の通知項目 DOM
+  const checkNotifyEnabled = document.getElementById('check-notify-enabled');
+  const checkNotifyTicker = document.getElementById('check-notify-ticker');
+  const selectNotifySource = document.getElementById('select-notify-source');
+  const settingsGasUrlGroup = document.getElementById('settings-gas-url-group');
+  const inputNotifyGasUrl = document.getElementById('input-notify-gas-url');
+  const btnTestGas = document.getElementById('btn-test-gas-connection');
+  const btnShowGasInstructions = document.getElementById('btn-show-gas-instructions');
+  const gasInstructionsCard = document.getElementById('gas-instructions-card');
+  const btnCopyGasCode = document.getElementById('btn-copy-gas-code');
+  const selectNotifyInterval = document.getElementById('select-notify-interval');
+
+  const btnTogglePlay = document.getElementById('btn-toggle-play');
+  const iconPause = document.getElementById('icon-pause');
+  const iconPlay = document.getElementById('icon-play');
+  const btnNext = document.getElementById('btn-next');
+  const btnOpenFavorites = document.getElementById('btn-open-favorites');
+  const favBadge = document.getElementById('fav-badge');
+  const btnReload = document.getElementById('btn-reload');
+  const btnSettings = document.getElementById('btn-settings');
+
+  const mapModal = document.getElementById('map-modal-backdrop');
+  const btnCloseMap = document.getElementById('btn-close-map');
+  const modalPlaceTitle = document.getElementById('modal-place-title');
+  const modalPlaceSub = document.getElementById('modal-place-sub');
+  const modalCoords = document.getElementById('modal-coords');
+  const btnModalFav = document.getElementById('btn-modal-fav');
+  const modalFavText = document.getElementById('modal-fav-text');
+  const btnOpenGoogleMaps = document.getElementById('btn-open-google-maps');
+
+  const settingsModal = document.getElementById('settings-modal-backdrop');
+  const btnCloseSettings = document.getElementById('btn-close-settings');
+  const inputApiKey = document.getElementById('input-api-key');
+  const selectInterval = document.getElementById('select-interval');
+  const selectWanderMode = document.getElementById('select-wander-mode');
+  const btnSaveSettings = document.getElementById('btn-save-settings');
+
+  const favoritesModal = document.getElementById('favorites-modal-backdrop');
+  const btnCloseFavorites = document.getElementById('btn-close-favorites');
+  const favModalCount = document.getElementById('fav-modal-count');
+  const favoritesListContainer = document.getElementById('favorites-list');
+  const btnClearAllFavorites = document.getElementById('btn-clear-all-favorites');
+
+  const toastNotification = document.getElementById('toast-notification');
+  const panoContainer = document.getElementById('pano-container');
+  let isGoogleMapsLoaded = false;
+  let googlePano = null;
+
+  // =========================================================================
+  // 1. アナログ針時計の構築 & 更新
+  // =========================================================================
+  function initClockTicks() {
+    const cx = 50;
+    const cy = 50;
+    const r = 44;
+    clockTicksGroup.innerHTML = '';
+
+    for (let i = 0; i < 60; i++) {
+      const angle = (i * 6 - 90) * (Math.PI / 180);
+      const isMajor = i % 5 === 0;
+      const tickLength = isMajor ? 5 : 2.5;
+      const x1 = cx + (r - tickLength) * Math.cos(angle);
+      const y1 = cy + (r - tickLength) * Math.sin(angle);
+      const x2 = cx + r * Math.cos(angle);
+      const y2 = cy + r * Math.sin(angle);
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', x1);
+      line.setAttribute('y1', y1);
+      line.setAttribute('x2', x2);
+      line.setAttribute('y2', y2);
+      line.setAttribute('class', isMajor ? 'clock-tick major' : 'clock-tick');
+      clockTicksGroup.appendChild(line);
+    }
+  }
+
+  function updateClock() {
+    const now = new Date();
+    const hours = now.getHours() % 12;
+    const minutes = now.getMinutes();
+    const seconds = now.getSeconds();
+    const millis = now.getMilliseconds();
+
+    // 角度計算
+    const hourDeg = (hours + minutes / 60 + seconds / 3600) * 30;
+    const minDeg = (minutes + seconds / 60) * 6;
+    const secDeg = (seconds + millis / 1000) * 6;
+
+    hourHand.setAttribute('transform', `rotate(${hourDeg} 50 50)`);
+    minuteHand.setAttribute('transform', `rotate(${minDeg} 50 50)`);
+    secondHand.setAttribute('transform', `rotate(${secDeg} 50 50)`);
+
+    requestAnimationFrame(updateClock);
+  }
+
+  // =========================================================================
+  // 2. 地点キュー管理 & シャッフル
+  // =========================================================================
+  function shuffleArray(array) {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function getNextLocation() {
+    if (locationQueue.length === 0) {
+      locationQueue = shuffleArray(WORLD_LOCATIONS);
+    }
+    return locationQueue.pop();
+  }
+
+  // =========================================================================
+  // 3. Google Maps JavaScript API 動的ローダー
+  // =========================================================================
+  function loadGoogleMapsScript(key, onReady) {
+    if (window.google && window.google.maps) {
+      isGoogleMapsLoaded = true;
+      if (onReady) onReady();
+      return;
+    }
+
+    const existingScript = document.getElementById('google-maps-api-script');
+    if (existingScript) existingScript.remove();
+
+    window.__initGoogleMaps = function () {
+      isGoogleMapsLoaded = true;
+      if (onReady) onReady();
+    };
+
+    const script = document.createElement('script');
+    script.id = 'google-maps-api-script';
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key.trim())}&callback=__initGoogleMaps`;
+    script.async = true;
+    script.defer = true;
+    script.onerror = function () {
+      console.warn('Google Maps JavaScript API の読み込みに失敗しました。');
+      isGoogleMapsLoaded = false;
+    };
+    document.head.appendChild(script);
+  }
+
+  let streetViewService = null;
+  let geocoder = null;
+  let skipAttempts = 0;
+
+  // =========================================================================
+  // 4. 逆ジオコーディング（大まかな住所取得：番地除外）
+  // =========================================================================
+  function reverseGeocodeLocation(lat, lng, defaultFlag) {
+    if (!window.google || !window.google.maps) return;
+    if (!geocoder) geocoder = new google.maps.Geocoder();
+
+    geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+      if (status === 'OK' && results && results[0]) {
+        const components = results[0].address_components;
+        let country = '';
+        let adminArea = '';
+        let locality = '';
+        let sublocality = '';
+
+        for (const c of components) {
+          if (c.types.includes('country')) {
+            country = c.long_name;
+          } else if (c.types.includes('administrative_area_level_1')) {
+            adminArea = c.long_name;
+          } else if (c.types.includes('locality')) {
+            locality = c.long_name;
+          } else if (c.types.includes('sublocality_level_1') || c.types.includes('administrative_area_level_2')) {
+            if (!sublocality) sublocality = c.long_name;
+          }
+        }
+
+        const flagPrefix = defaultFlag ? `${defaultFlag} ` : '';
+        if (country) locCountry.textContent = `${flagPrefix}${country}`;
+
+        const details = [adminArea, locality, sublocality].filter(Boolean);
+        if (details.length > 0) {
+          locDetail.textContent = details.join(' ');
+          if (currentLocation) {
+            currentLocation.addressText = details.join(' ');
+          }
+        }
+        updateFavoriteButtonsState();
+      }
+    });
+  }
+
+  // =========================================================================
+  // 5. 360°パノラマ（実在ストリートビュー自動検索＆ランダム散歩）
+  // =========================================================================
+  function updateInteractivePanorama(loc, onReady, isDirectJump = false) {
+    if (!window.google || !window.google.maps) {
+      if (onReady) onReady();
+      return false;
+    }
+
+    if (!streetViewService) {
+      streetViewService = new google.maps.StreetViewService();
+    }
+
+    if (!googlePano) {
+      googlePano = new google.maps.StreetViewPanorama(panoContainer, {
+        zoom: 1,
+        disableDefaultUI: true,
+        linksControl: false,          // 道路の矢印非表示
+        panControl: false,            // コンパス非表示
+        zoomControl: false,           // ズームボタン非表示
+        addressControl: false,        // 住所バー非表示
+        fullscreenControl: false,     // 全画面ボタン非表示
+        motionTracking: false,        // ★ジャイロ無効化（指の操作のみ）
+        motionTrackingControl: false, // ★ジャイロ切替ボタン非表示
+        clickToGo: false,             // タップで別地点へ移動するのを防止
+        showRoadLabels: false,        // 道路名非表示
+        visible: true
+      });
+    }
+
+    // もしすでにパノラマIDが直接指定されている場合（保存済み地点など）
+    if (loc.panoId) {
+      googlePano.setPano(loc.panoId);
+      googlePano.setPov({
+        heading: loc.heading || 0,
+        pitch: loc.pitch || 0
+      });
+      panoContainer.classList.add('active');
+      if (onReady) setTimeout(onReady, 350);
+      return true;
+    }
+
+    // 探索ターゲット座標の決定
+    let searchLat = loc.actualLat || loc.lat;
+    let searchLng = loc.actualLng || loc.lng;
+
+    // お気に入りからの直接ジャンプでない場合のみ、散歩オフセットを適用
+    if (!isDirectJump && wanderMode === 'wander') {
+      const angle = Math.random() * Math.PI * 2;
+      const distKm = 0.8 + Math.random() * 4.2; // 0.8km〜5.0km
+      const dLat = (distKm / 111) * Math.cos(angle);
+      const dLng = (distKm / (111 * Math.cos((loc.lat * Math.PI) / 180))) * Math.sin(angle);
+      searchLat += dLat;
+      searchLng += dLng;
+    }
+
+    // 周囲の「実際に存在する屋外ストリートビュー撮影地点」を探索
+    streetViewService.getPanorama({
+      location: { lat: searchLat, lng: searchLng },
+      radius: (!isDirectJump && wanderMode === 'wander') ? 3500 : 2500,
+      preference: google.maps.StreetViewPreference.NEAREST,
+      source: google.maps.StreetViewSource.OUTDOOR
+    }, (data, status) => {
+      if (status === google.maps.StreetViewStatus.OK && data && data.location) {
+        skipAttempts = 0;
+
+        // 実際に撮影された道路・ポイントの正確な座標を記録
+        const actualLat = data.location.latLng.lat();
+        const actualLng = data.location.latLng.lng();
+        loc.actualLat = actualLat;
+        loc.actualLng = actualLng;
+        loc.panoId = data.location.pano;
+
+        googlePano.setPano(data.location.pano);
+        googlePano.setPov({
+          heading: loc.heading !== undefined ? loc.heading : (data.tiles ? data.tiles.centerHeading : 0),
+          pitch: loc.pitch !== undefined ? loc.pitch : 0
+        });
+        panoContainer.classList.add('active');
+
+        // ランダム散歩モード時は、到達した未知の街角の住所を動的取得
+        if (!isDirectJump && wanderMode === 'wander') {
+          reverseGeocodeLocation(actualLat, actualLng, loc.flag);
+        }
+
+        // タイル描画の初期安定を待ってからフェードイン完了へ
+        if (onReady) setTimeout(onReady, 400);
+      } else {
+        // オフセット地点で見つからなかった場合、ベース地点を試す
+        if (!isDirectJump && wanderMode === 'wander' && (searchLat !== loc.lat || searchLng !== loc.lng)) {
+          streetViewService.getPanorama({
+            location: { lat: loc.lat, lng: loc.lng },
+            radius: 2500,
+            source: google.maps.StreetViewSource.OUTDOOR
+          }, (baseData, baseStatus) => {
+            if (baseStatus === google.maps.StreetViewStatus.OK && baseData && baseData.location) {
+              loc.actualLat = baseData.location.latLng.lat();
+              loc.actualLng = baseData.location.latLng.lng();
+              loc.panoId = baseData.location.pano;
+              googlePano.setPano(baseData.location.pano);
+              googlePano.setPov({
+                heading: loc.heading || 0,
+                pitch: loc.pitch || 0
+              });
+              panoContainer.classList.add('active');
+              if (onReady) setTimeout(onReady, 400);
+            } else {
+              // ベース地点でも見つからなければ次の場所へスキップ
+              showNextLocation();
+            }
+          });
+        } else {
+          skipAttempts++;
+          if (skipAttempts < 5) {
+            showNextLocation();
+          } else {
+            panoContainer.classList.remove('active');
+            skipAttempts = 0;
+            if (onReady) onReady();
+          }
+        }
+      }
+    });
+
+    return true;
+  }
+
+  // =========================================================================
+  // 6. デモ画像・フォールバック表示
+  // =========================================================================
+  function getStreetViewImageUrl(loc) {
+    if (apiKey && apiKey.trim().length > 0) {
+      const width = Math.min(window.screen.width || 640, 640);
+      const height = Math.min(window.screen.height || 640, 640);
+      const heading = loc.heading !== undefined ? loc.heading : 0;
+      const pitch = loc.pitch !== undefined ? loc.pitch : 0;
+      return `https://maps.googleapis.com/maps/api/streetview?size=${width}x${height}&scale=2&location=${loc.lat},${loc.lng}&heading=${heading}&pitch=${pitch}&fov=90&key=${apiKey.trim()}`;
+    }
+    return loc.demoImage;
+  }
+
+  function loadStaticDemoImage(loc, onReady) {
+    const imageUrl = getStreetViewImageUrl(loc);
+    const nextImg = currentLayer === 'a' ? layerB : layerA;
+    const activeImg = currentLayer === 'a' ? layerA : layerB;
+
+    const preload = new Image();
+    const handleLoaded = () => {
+      nextImg.src = preload.src;
+      nextImg.classList.add('active');
+      activeImg.classList.remove('active');
+      currentLayer = currentLayer === 'a' ? 'b' : 'a';
+      if (onReady) setTimeout(onReady, 100);
+    };
+
+    preload.onload = handleLoaded;
+    preload.onerror = () => {
+      preload.src = loc.demoImage || 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80';
+      handleLoaded();
+    };
+    preload.src = imageUrl;
+  }
+
+  // =========================================================================
+  // 7. シネマティック フェードイン/アウト トランジション
+  // =========================================================================
+  function transitionToLocation(loc, isDirectJump = false) {
+    if (isTransitioning) return;
+    isTransitioning = true;
+
+    // 1. フェードアウト（画面暗転＆住所文字のフェード）
+    if (sceneCurtain) sceneCurtain.classList.add('fade-out');
+    const locationInfo = document.querySelector('.location-info');
+    if (locationInfo) locationInfo.classList.add('fading');
+
+    // 暗転完了タイミング（約450ms後）にコンテンツ差し替え
+    setTimeout(() => {
+      currentLocation = loc;
+
+      // 国名・住所テキストの反映
+      const flagPrefix = loc.flag ? `${loc.flag} ` : '';
+      locCountry.textContent = `${flagPrefix}${loc.country}`;
+      locDetail.textContent = loc.addressText || `${loc.region} ${loc.city}`;
+
+      // お気に入り状態のUI反映
+      updateFavoriteButtonsState();
+
+      // 新しい地点の描画完了時コールバック（カーテンを開く）
+      const revealScene = () => {
+        setTimeout(() => {
+          if (locationInfo) locationInfo.classList.remove('fading');
+          if (sceneCurtain) sceneCurtain.classList.remove('fade-out');
+          resetTimer();
+          setTimeout(() => {
+            isTransitioning = false;
+          }, 600);
+        }, 150);
+      };
+
+      if (apiKey && apiKey.trim().length > 0) {
+        if (isGoogleMapsLoaded) {
+          updateInteractivePanorama(loc, revealScene, isDirectJump);
+        } else {
+          loadGoogleMapsScript(apiKey, () => {
+            updateInteractivePanorama(loc, revealScene, isDirectJump);
+          });
+        }
+      } else {
+        panoContainer.classList.remove('active');
+        loadStaticDemoImage(loc, revealScene);
+      }
+    }, 450);
+  }
+
+  function showNextLocation() {
+    const loc = getNextLocation();
+    transitionToLocation(loc, false);
+  }
+
+  // =========================================================================
+  // 8. タイマー＆プログレスバー
+  // =========================================================================
+  function resetTimer() {
+    remainingSeconds = intervalSeconds;
+    updateProgress();
+  }
+
+  function updateProgress() {
+    const percent = ((intervalSeconds - remainingSeconds) / intervalSeconds) * 100;
+    progressFill.style.width = `${Math.min(percent, 100)}%`;
+  }
+
+  function startTimer() {
+    if (timerIntervalId) clearInterval(timerIntervalId);
+    timerIntervalId = setInterval(() => {
+      if (isPaused) return;
+
+      remainingSeconds -= 0.5;
+      updateProgress();
+
+      if (remainingSeconds <= 0) {
+        showNextLocation();
+      }
+    }, 500);
+  }
+
+  function togglePlayPause() {
+    isPaused = !isPaused;
+    if (isPaused) {
+      iconPause.style.display = 'none';
+      iconPlay.style.display = 'block';
+    } else {
+      iconPause.style.display = 'block';
+      iconPlay.style.display = 'none';
+    }
+  }
+
+  // =========================================================================
+  // 9. お気に入り（保存）機能
+  // =========================================================================
+  function loadFavorites() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_FAVORITES);
+      favoritesList = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      favoritesList = [];
+    }
+    updateFavoritesBadge();
+    updateFavoriteButtonsState();
+  }
+
+  function saveFavorites() {
+    try {
+      localStorage.setItem(STORAGE_KEY_FAVORITES, JSON.stringify(favoritesList));
+    } catch (e) {
+      console.error('お気に入りの保存に失敗しました:', e);
+    }
+    updateFavoritesBadge();
+    updateFavoriteButtonsState();
+  }
+
+  function updateFavoritesBadge() {
+    const count = favoritesList.length;
+    if (favBadge) {
+      if (count > 0) {
+        favBadge.textContent = count > 99 ? '99+' : count;
+        favBadge.style.display = 'flex';
+      } else {
+        favBadge.style.display = 'none';
+      }
+    }
+    if (favModalCount) {
+      favModalCount.textContent = `${count}件`;
+    }
+  }
+
+  function isLocationFavorited(loc) {
+    if (!loc) return false;
+    const lat = loc.actualLat || loc.lat;
+    const lng = loc.actualLng || loc.lng;
+    return favoritesList.some(item => {
+      if (item.panoId && loc.panoId && item.panoId === loc.panoId) return true;
+      const itemLat = item.actualLat || item.lat;
+      const itemLng = item.actualLng || item.lng;
+      const dist = Math.hypot(itemLat - lat, itemLng - lng);
+      return dist < 0.003 || (item.city === loc.city && item.country === loc.country && dist < 0.05);
+    });
+  }
+
+  function updateFavoriteButtonsState() {
+    const isFav = isLocationFavorited(currentLocation);
+    if (btnFavToggle) {
+      btnFavToggle.classList.toggle('is-favorite', isFav);
+      btnFavToggle.title = isFav ? 'お気に入りを解除' : 'この場所をお気に入りに保存';
+    }
+    if (btnModalFav) {
+      btnModalFav.classList.toggle('is-favorite', isFav);
+      if (modalFavText) {
+        modalFavText.textContent = isFav ? '保存済み' : '保存する';
+      }
+    }
+  }
+
+  function toggleFavoriteCurrentLocation() {
+    if (!currentLocation) return;
+    const isFav = isLocationFavorited(currentLocation);
+    const lat = currentLocation.actualLat || currentLocation.lat;
+    const lng = currentLocation.actualLng || currentLocation.lng;
+
+    if (isFav) {
+      // 登録解除
+      favoritesList = favoritesList.filter(item => {
+        const itemLat = item.actualLat || item.lat;
+        const itemLng = item.actualLng || item.lng;
+        const dist = Math.hypot(itemLat - lat, itemLng - lng);
+        return dist >= 0.003 && !(item.city === currentLocation.city && item.country === currentLocation.country && dist < 0.05);
+      });
+      saveFavorites();
+      showToast('お気に入りから削除しました');
+    } else {
+      // 新規保存
+      const now = new Date();
+      const month = now.getMonth() + 1;
+      const day = now.getDate();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const dateStr = `${month}/${day} ${hours}:${minutes}`;
+
+      const favItem = {
+        id: 'fav_' + Date.now(),
+        flag: currentLocation.flag || '📍',
+        country: currentLocation.country || '',
+        region: currentLocation.region || '',
+        city: currentLocation.city || '',
+        addressText: locDetail ? locDetail.textContent : '',
+        lat: currentLocation.lat,
+        lng: currentLocation.lng,
+        actualLat: lat,
+        actualLng: lng,
+        panoId: currentLocation.panoId || null,
+        heading: currentLocation.heading || 0,
+        pitch: currentLocation.pitch || 0,
+        demoImage: currentLocation.demoImage || '',
+        dateStr: dateStr,
+        timestamp: Date.now()
+      };
+
+      favoritesList.unshift(favItem);
+      saveFavorites();
+      showToast('⭐️ お気に入りに保存しました');
+    }
+
+    updateFavoriteButtonsState();
+    if (favoritesModal && favoritesModal.classList.contains('open')) {
+      renderFavoritesList();
+    }
+  }
+
+  let toastTimerId = null;
+  function showToast(message) {
+    if (!toastNotification) return;
+    toastNotification.textContent = message;
+    toastNotification.classList.add('show');
+    if (toastTimerId) clearTimeout(toastTimerId);
+    toastTimerId = setTimeout(() => {
+      toastNotification.classList.remove('show');
+    }, 2200);
+  }
+
+  function openFavoritesModal() {
+    renderFavoritesList();
+    favoritesModal.classList.add('open');
+  }
+
+  function closeFavoritesModal() {
+    favoritesModal.classList.remove('open');
+  }
+
+  function renderFavoritesList() {
+    if (!favoritesListContainer) return;
+    favoritesListContainer.innerHTML = '';
+    updateFavoritesBadge();
+
+    if (favoritesList.length === 0) {
+      favoritesListContainer.innerHTML = `
+        <div class="fav-empty">
+          <span class="fav-empty-icon">⭐️</span>
+          <p>保存した場所はまだありません。</p>
+          <p style="font-size: 11px; margin-top: 8px; color: rgba(255,255,255,0.45); line-height: 1.5;">
+            画面下の場所カードにある ♡ ボタンを押すと、<br>いつでもお気に入りの街角を保存できます。
+          </p>
+        </div>
+      `;
+      if (btnClearAllFavorites) btnClearAllFavorites.style.display = 'none';
+      return;
+    }
+
+    if (btnClearAllFavorites) btnClearAllFavorites.style.display = 'block';
+
+    favoritesList.forEach((item, index) => {
+      const card = document.createElement('div');
+      card.className = 'fav-item';
+
+      const lat = item.actualLat || item.lat;
+      const lng = item.actualLng || item.lng;
+      const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+      card.innerHTML = `
+        <div class="fav-item-main">
+          <div class="fav-item-place">
+            <span>${item.flag || '📍'}</span>
+            <span>${item.country}</span>
+          </div>
+          <div class="fav-item-sub">${item.addressText || item.city || ''}</div>
+          <div class="fav-item-date">${item.dateStr || ''} (${lat.toFixed(4)}°, ${lng.toFixed(4)}°)</div>
+        </div>
+        <div class="fav-item-actions">
+          <button class="fav-btn-view" data-index="${index}" title="この場所を360度で見る">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+            見る
+          </button>
+          <a class="fav-btn-gmaps" href="${gmapsUrl}" target="_blank" rel="noopener noreferrer" title="Googleマップで開く">
+            <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+          </a>
+          <button class="fav-btn-delete" data-index="${index}" title="削除">
+            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+          </button>
+        </div>
+      `;
+
+      card.querySelector('.fav-btn-view').addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeFavoritesModal();
+        transitionToLocation(item, true);
+      });
+
+      card.querySelector('.fav-btn-delete').addEventListener('click', (e) => {
+        e.stopPropagation();
+        favoritesList.splice(index, 1);
+        saveFavorites();
+        renderFavoritesList();
+        showToast('削除しました');
+      });
+
+      favoritesListContainer.appendChild(card);
+    });
+  }
+
+  function clearAllFavorites() {
+    if (favoritesList.length === 0) return;
+    if (confirm('保存した場所をすべて削除しますか？')) {
+      favoritesList = [];
+      saveFavorites();
+      renderFavoritesList();
+      showToast('すべての場所を削除しました');
+    }
+  }
+
+  // =========================================================================
+  // 10. 地図モーダル（Leaflet & Googleマップ連携）
+  // =========================================================================
+  function openMapModal() {
+    if (!currentLocation) return;
+
+    updateFavoriteButtonsState();
+
+    // タイマーを一時停止
+    const prevPausedState = isPaused;
+    isPaused = true;
+
+    // 実際に撮影されたパノラマ座標（実在地点）があればそちらを優先
+    const lat = currentLocation.actualLat !== undefined ? currentLocation.actualLat : currentLocation.lat;
+    const lng = currentLocation.actualLng !== undefined ? currentLocation.actualLng : currentLocation.lng;
+
+    modalPlaceTitle.textContent = `${currentLocation.country}・${currentLocation.region}`;
+    modalPlaceSub.textContent = currentLocation.city;
+    modalCoords.textContent = `${lat.toFixed(5)}°, ${lng.toFixed(5)}°`;
+
+    // Googleマップ直接リンク
+    const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    btnOpenGoogleMaps.href = gmapsUrl;
+
+    mapModal.classList.add('open');
+
+    // Leafletマップの初期化または更新
+    setTimeout(() => {
+
+      // モダンなSVGマップピンアイコン
+      const pinIcon = L.divIcon({
+        className: 'custom-map-pin',
+        html: `
+          <svg width="34" height="42" viewBox="0 0 34 42" fill="none" style="filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));">
+            <path d="M17 0C7.61 0 0 7.61 0 17C0 29.75 17 42 17 42C17 42 34 29.75 34 17C34 7.61 26.39 0 17 0Z" fill="#EF4444"/>
+            <circle cx="17" cy="17" r="6.5" fill="#FFFFFF"/>
+          </svg>
+        `,
+        iconSize: [34, 42],
+        iconAnchor: [17, 42],
+        popupAnchor: [0, -40]
+      });
+
+      if (!leafletMap) {
+        leafletMap = L.map('leaflet-map', {
+          zoomControl: true,
+          attributionControl: true
+        }).setView([lat, lng], 13);
+
+        // 高解像度・見やすい標準OpenStreetMapタイル
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(leafletMap);
+
+        currentMarker = L.marker([lat, lng], { icon: pinIcon }).addTo(leafletMap);
+      } else {
+        leafletMap.invalidateSize();
+        leafletMap.setView([lat, lng], 13);
+        if (currentMarker) {
+          currentMarker.setLatLng([lat, lng]);
+          currentMarker.setIcon(pinIcon);
+        } else {
+          currentMarker = L.marker([lat, lng], { icon: pinIcon }).addTo(leafletMap);
+        }
+      }
+
+      const flag = currentLocation.flag ? `${currentLocation.flag} ` : '';
+      currentMarker.bindPopup(`<b>${flag}${currentLocation.country}</b><br>${currentLocation.city}`).openPopup();
+    }, 150);
+
+    // 閉じたときのタイマー復元用リスナー
+    mapModal.dataset.resume = prevPausedState ? 'no' : 'yes';
+  }
+
+  function closeMapModal() {
+    mapModal.classList.remove('open');
+    if (mapModal.dataset.resume === 'yes') {
+      isPaused = false;
+    }
+  }
+
+  // =========================================================================
+  // 7. 設定モーダル
+  // =========================================================================
+  function openSettingsModal() {
+    inputApiKey.value = apiKey;
+    selectInterval.value = intervalSeconds.toString();
+    if (selectWanderMode) selectWanderMode.value = wanderMode;
+
+    // 通知設定の反映
+    if (checkNotifyEnabled) checkNotifyEnabled.checked = notifyEnabled;
+    if (checkNotifyTicker) checkNotifyTicker.checked = notifyTickerEnabled;
+    if (selectNotifySource) selectNotifySource.value = notifySource;
+    if (inputNotifyGasUrl) inputNotifyGasUrl.value = notifyGasUrl;
+    if (selectNotifyInterval) selectNotifyInterval.value = notifyIntervalSeconds.toString();
+    if (settingsGasUrlGroup) settingsGasUrlGroup.style.display = (notifySource === 'gas') ? 'block' : 'none';
+    if (gasInstructionsCard) gasInstructionsCard.style.display = 'none';
+
+    settingsModal.classList.add('open');
+  }
+
+  function closeSettingsModal() {
+    settingsModal.classList.remove('open');
+  }
+
+  function saveSettings() {
+    apiKey = inputApiKey.value.trim();
+    intervalSeconds = parseInt(selectInterval.value, 10) || 60;
+    wanderMode = selectWanderMode ? selectWanderMode.value : 'wander';
+
+    localStorage.setItem(STORAGE_KEY_API_KEY, apiKey);
+    localStorage.setItem(STORAGE_KEY_INTERVAL, intervalSeconds.toString());
+    localStorage.setItem(STORAGE_KEY_WANDER_MODE, wanderMode);
+
+    // 通知設定の保存
+    if (checkNotifyEnabled) {
+      notifyEnabled = checkNotifyEnabled.checked;
+      localStorage.setItem(STORAGE_KEY_NOTIFY_ENABLED, notifyEnabled ? 'true' : 'false');
+      if (notifyWidget) {
+        if (notifyEnabled) {
+          notifyWidget.classList.remove('hidden');
+        } else {
+          notifyWidget.classList.add('hidden');
+        }
+      }
+    }
+
+    if (checkNotifyTicker) {
+      notifyTickerEnabled = checkNotifyTicker.checked;
+      localStorage.setItem(STORAGE_KEY_NOTIFY_TICKER, notifyTickerEnabled ? 'true' : 'false');
+    }
+
+    if (selectNotifySource) {
+      notifySource = selectNotifySource.value;
+      localStorage.setItem(STORAGE_KEY_NOTIFY_SOURCE, notifySource);
+    }
+
+    if (inputNotifyGasUrl) {
+      notifyGasUrl = inputNotifyGasUrl.value.trim();
+      localStorage.setItem(STORAGE_KEY_NOTIFY_GAS_URL, notifyGasUrl);
+    }
+
+    if (selectNotifyInterval) {
+      notifyIntervalSeconds = parseInt(selectNotifyInterval.value, 10) || 180;
+      localStorage.setItem(STORAGE_KEY_NOTIFY_INTERVAL, notifyIntervalSeconds.toString());
+    }
+
+    closeSettingsModal();
+    resetTimer();
+
+    // 通知ポーリングの再設定 & 即時データ更新
+    startNotificationPolling();
+    fetchNotificationData();
+
+    // 現在の地点を新しいAPIキー設定に合わせて再読み込み
+    if (apiKey && apiKey.trim().length > 0) {
+      if (isGoogleMapsLoaded) {
+        if (currentLocation) updateInteractivePanorama(currentLocation);
+      } else {
+        loadGoogleMapsScript(apiKey, () => {
+          if (currentLocation) updateInteractivePanorama(currentLocation);
+        });
+      }
+    } else {
+      panoContainer.classList.remove('active');
+      if (currentLocation) {
+        const imageUrl = getStreetViewImageUrl(currentLocation);
+        const activeImg = currentLayer === 'a' ? layerA : layerB;
+        activeImg.src = imageUrl;
+      }
+    }
+  }
+
+  // =========================================================================
+  // 8. ドラッグ＆ドロップ機能（時計・場所表示カード）
+  // =========================================================================
+  const draggableElements = [];
+
+  function makeDraggable(element, storageKey, options = {}) {
+    let startX = 0;
+    let startY = 0;
+    let initialLeft = 0;
+    let initialTop = 0;
+    let isDragging = false;
+    let lastTapTime = 0;
+
+    function applyRatioPosition(ratioX, ratioY) {
+      const width = element.offsetWidth || 80;
+      const height = element.offsetHeight || 80;
+      const minX = 8;
+      const maxX = Math.max(minX, window.innerWidth - width - 8);
+      const minY = 8;
+      const maxY = Math.max(minY, window.innerHeight - height - 8);
+
+      let targetX = window.innerWidth * ratioX;
+      let targetY = window.innerHeight * ratioY;
+
+      targetX = Math.max(minX, Math.min(maxX, targetX));
+      targetY = Math.max(minY, Math.min(maxY, targetY));
+
+      element.style.position = 'fixed';
+      element.style.left = `${targetX}px`;
+      element.style.top = `${targetY}px`;
+      element.style.bottom = 'auto';
+      element.style.right = 'auto';
+      element.style.margin = '0';
+    }
+
+    function resetToDefault() {
+      localStorage.removeItem(storageKey);
+      element.style.position = '';
+      element.style.left = '';
+      element.style.top = '';
+      element.style.bottom = '';
+      element.style.right = '';
+      element.style.margin = '';
+    }
+
+    function restorePosition() {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        try {
+          const { ratioX, ratioY } = JSON.parse(saved);
+          applyRatioPosition(ratioX, ratioY);
+          return;
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      resetToDefault();
+    }
+
+    element.addEventListener('pointerdown', (e) => {
+      // 内部のリンクやボタンのタップは邪魔しない
+      if (e.target.closest('button') || e.target.closest('a')) return;
+
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = element.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+      isDragging = false;
+
+      element.setPointerCapture(e.pointerId);
+    });
+
+    element.addEventListener('pointermove', (e) => {
+      if (!element.hasPointerCapture(e.pointerId)) return;
+
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      if (!isDragging && Math.hypot(dx, dy) > 5) {
+        isDragging = true;
+        element.classList.add('is-dragging');
+      }
+
+      if (isDragging) {
+        const width = element.offsetWidth;
+        const height = element.offsetHeight;
+        const minX = 8;
+        const maxX = Math.max(minX, window.innerWidth - width - 8);
+        const minY = 8;
+        const maxY = Math.max(minY, window.innerHeight - height - 8);
+
+        let targetX = initialLeft + dx;
+        let targetY = initialTop + dy;
+
+        targetX = Math.max(minX, Math.min(maxX, targetX));
+        targetY = Math.max(minY, Math.min(maxY, targetY));
+
+        element.style.position = 'fixed';
+        element.style.left = `${targetX}px`;
+        element.style.top = `${targetY}px`;
+        element.style.bottom = 'auto';
+        element.style.right = 'auto';
+        element.style.margin = '0';
+      }
+    });
+
+    element.addEventListener('pointerup', (e) => {
+      if (element.hasPointerCapture(e.pointerId)) {
+        element.releasePointerCapture(e.pointerId);
+      }
+
+      element.classList.remove('is-dragging');
+
+      if (isDragging) {
+        const rect = element.getBoundingClientRect();
+        const ratioX = rect.left / window.innerWidth;
+        const ratioY = rect.top / window.innerHeight;
+        localStorage.setItem(storageKey, JSON.stringify({ ratioX, ratioY }));
+        isDragging = false;
+        return;
+      }
+
+      // 単なるタップだった場合
+      const now = Date.now();
+      if (now - lastTapTime < 320) {
+        // ダブルタップで位置を初期位置にリセット
+        resetToDefault();
+        lastTapTime = 0;
+        return;
+      }
+      lastTapTime = now;
+
+      if (options.onClick) {
+        options.onClick(e);
+      }
+    });
+
+    element.addEventListener('pointercancel', (e) => {
+      if (element.hasPointerCapture(e.pointerId)) {
+        element.releasePointerCapture(e.pointerId);
+      }
+      element.classList.remove('is-dragging');
+      isDragging = false;
+    });
+
+    draggableElements.push({ element, storageKey, applyRatioPosition, resetToDefault });
+    restorePosition();
+  }
+
+  // =========================================================================
+  // 9. 未読通知システム (Chatwork & Gmail)
+  // =========================================================================
+
+  const DEMO_NOTIFY_DATA = {
+    chatwork: {
+      unread_count: 2,
+      items: [
+        {
+          id: 'cw-1',
+          room_id: '248815614',
+          room_name: 'デザイン・校正共有',
+          sender_name: '佐藤 健太',
+          body: 'ストリートビューのUIデザイン確認しました。通知バッジが風景の邪魔にならずとても良い感じです！',
+          date: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+          date_formatted: '15分前'
+        },
+        {
+          id: 'cw-2',
+          room_id: '123456789',
+          room_name: 'プロジェクト進捗',
+          sender_name: '山田 太郎',
+          body: '来週の更新リスト同期について、GASの最新コードを共有いたします。',
+          date: new Date(Date.now() - 48 * 60 * 1000).toISOString(),
+          date_formatted: '48分前'
+        }
+      ]
+    },
+    gmail: {
+      unread_count: 2,
+      items: [
+        {
+          id: 'gm-1',
+          from: 'Google Cloud Platform',
+          from_email: 'cloud-noreply@google.com',
+          subject: '【重要】Maps JavaScript APIの月次クォータ使用状況レポート',
+          date: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+          date_formatted: '25分前',
+          snippet: 'プロジェクトの利用状況レポートが準備できました。コンソールよりご確認いただけます。'
+        },
+        {
+          id: 'gm-2',
+          from: 'GitHub Notifications',
+          from_email: 'notifications@github.com',
+          subject: '[GitHub] あなたのリポジトリへのPull Requestが承認されました',
+          date: new Date(Date.now() - 75 * 60 * 1000).toISOString(),
+          date_formatted: '1時間前',
+          snippet: 'All status checks have passed. You can now merge the pull request.'
+        }
+      ]
+    }
+  };
+
+  /**
+   * 通知システム全体の初期化
+   */
+  function initNotificationSystem() {
+    if (!notifyWidget) return;
+
+    if (notifyEnabled) {
+      notifyWidget.classList.remove('hidden');
+    } else {
+      notifyWidget.classList.add('hidden');
+    }
+
+    // 初回データ取得
+    fetchNotificationData();
+
+    // 定期ポーリング開始
+    startNotificationPolling();
+  }
+
+  /**
+   * ポーリングタイマー開始
+   */
+  function startNotificationPolling() {
+    if (notifyTimerId) {
+      clearInterval(notifyTimerId);
+      notifyTimerId = null;
+    }
+    const intervalMs = Math.max(30, notifyIntervalSeconds) * 1000;
+    notifyTimerId = setInterval(() => {
+      fetchNotificationData();
+    }, intervalMs);
+  }
+
+  /**
+   * 未読データの取得（デモモード または GAS連携）
+   */
+  function fetchNotificationData(isManual = false) {
+    if (!notifyEnabled && !isManual) return;
+
+    if (notifySyncSpinner) notifySyncSpinner.style.display = 'inline-block';
+    if (btnRefreshNotify) btnRefreshNotify.classList.add('rotating');
+
+    if (notifySource === 'demo' || !notifyGasUrl) {
+      // デモモード（またはURL未設定時のフォールバック）
+      setTimeout(() => {
+        notifyData = JSON.parse(JSON.stringify(DEMO_NOTIFY_DATA));
+        lastNotifyFetchTime = new Date();
+        updateNotificationUI();
+        if (notifySyncSpinner) notifySyncSpinner.style.display = 'none';
+        if (btnRefreshNotify) btnRefreshNotify.classList.remove('rotating');
+
+        if (isManual) {
+          showToast(notifySource === 'demo' ? 'デモ用通知データを更新しました' : 'GAS URL未設定のためデモを表示中');
+        }
+      }, isManual ? 400 : 100);
+      return;
+    }
+
+    // A. GASのWebアプリ（HTML Service）として実行されている場合は直接サーバー関数を呼出
+    if (window.google && window.google.script && window.google.script.run) {
+      google.script.run
+        .withSuccessHandler((json) => {
+          if (json && json.status === 'success') {
+            notifyData = {
+              chatwork: json.chatwork || { unread_count: 0, items: [] },
+              gmail: json.gmail || { unread_count: 0, items: [] }
+            };
+            lastNotifyFetchTime = new Date();
+            updateNotificationUI();
+            if (isManual) showToast('未読通知を最新に更新しました（GAS直接連携）');
+          } else {
+            console.warn('GAS内部エラー:', json);
+            if (isManual) showToast('通知取得でエラーが発生しました');
+          }
+          if (notifySyncSpinner) notifySyncSpinner.style.display = 'none';
+          if (btnRefreshNotify) btnRefreshNotify.classList.remove('rotating');
+        })
+        .withFailureHandler((err) => {
+          console.warn('google.script.run 失敗:', err);
+          if (isManual) showToast('GAS通信に失敗しました');
+          if (notifySyncSpinner) notifySyncSpinner.style.display = 'none';
+          if (btnRefreshNotify) btnRefreshNotify.classList.remove('rotating');
+        })
+        .getNotificationDataFromGAS();
+      return;
+    }
+
+    // B. 通常のWeb環境・ローカル環境では GAS Web App 経由でデータ取得
+    const requestUrl = notifyGasUrl.trim();
+    fetch(requestUrl, {
+      method: 'GET',
+      mode: 'cors'
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(json => {
+        if (json.status === 'error') {
+          throw new Error(json.message || 'GAS内部エラー');
+        }
+        notifyData = {
+          chatwork: json.chatwork || { unread_count: 0, items: [] },
+          gmail: json.gmail || { unread_count: 0, items: [] }
+        };
+        lastNotifyFetchTime = new Date();
+        updateNotificationUI();
+        if (isManual) showToast('未読通知を最新に更新しました');
+      })
+      .catch(err => {
+        console.warn('通知データの取得に失敗しました:', err);
+        if (isManual) showToast('通知取得に失敗。GAS URLを確認してください');
+      })
+      .finally(() => {
+        if (notifySyncSpinner) notifySyncSpinner.style.display = 'none';
+        if (btnRefreshNotify) btnRefreshNotify.classList.remove('rotating');
+      });
+  }
+
+  /**
+   * UIおよびティッカーの更新
+   */
+  function updateNotificationUI() {
+    const cwItems = (notifyData.chatwork && notifyData.chatwork.items) || [];
+    const gmailItems = (notifyData.gmail && notifyData.gmail.items) || [];
+    const cwCount = notifyData.chatwork ? (notifyData.chatwork.unread_count ?? cwItems.length) : 0;
+    const gmailCount = notifyData.gmail ? (notifyData.gmail.unread_count ?? gmailItems.length) : 0;
+    const totalCount = cwCount + gmailCount;
+
+    // Chatwork バッジ
+    if (notifyCwBadge) {
+      if (cwCount > 0) {
+        notifyCwBadge.textContent = cwCount > 99 ? '99+' : cwCount;
+        notifyCwBadge.style.display = 'inline-flex';
+        notifyCwBadge.classList.remove('zero');
+      } else {
+        notifyCwBadge.textContent = '0';
+        notifyCwBadge.style.display = 'none';
+      }
+    }
+
+    // Gmail バッジ
+    if (notifyGmailBadge) {
+      if (gmailCount > 0) {
+        notifyGmailBadge.textContent = gmailCount > 99 ? '99+' : gmailCount;
+        notifyGmailBadge.style.display = 'inline-flex';
+        notifyGmailBadge.classList.remove('zero');
+      } else {
+        notifyGmailBadge.textContent = '0';
+        notifyGmailBadge.style.display = 'none';
+      }
+    }
+
+    // モーダルの総合バッジ & タブバッジ
+    if (notifyModalTotalBadge) notifyModalTotalBadge.textContent = `${totalCount}件`;
+    if (tabBadgeAll) tabBadgeAll.textContent = totalCount;
+    if (tabBadgeCw) tabBadgeCw.textContent = cwCount;
+    if (tabBadgeGmail) tabBadgeGmail.textContent = gmailCount;
+
+    // 最終更新日時
+    if (notifyLastUpdated) {
+      if (lastNotifyFetchTime) {
+        const timeStr = lastNotifyFetchTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const sourceLabel = notifySource === 'demo' ? ' (デモ)' : '';
+        notifyLastUpdated.textContent = `最終確認: ${timeStr}${sourceLabel}`;
+      } else {
+        notifyLastUpdated.textContent = '未取得';
+      }
+    }
+
+    // ティッカー表示アイテムの構築
+    currentTickerItems = [];
+    cwItems.forEach(item => {
+      currentTickerItems.push({
+        type: 'chatwork',
+        prefix: '💬',
+        sender: item.sender_name || 'Chatwork',
+        text: item.body || item.room_name || '新着メッセージ',
+        time: item.date_formatted || ''
+      });
+    });
+
+    gmailItems.forEach(item => {
+      currentTickerItems.push({
+        type: 'gmail',
+        prefix: '✉️',
+        sender: item.from || 'Gmail',
+        text: item.subject || '(件名なし)',
+        time: item.date_formatted || ''
+      });
+    });
+
+    // ティッカー回転の開始/停止
+    startTickerRotation(totalCount);
+
+    // モーダルが開いていれば再レンダリング
+    if (notifyModal && notifyModal.classList.contains('open')) {
+      renderNotificationModalList();
+    }
+  }
+
+  /**
+   * 穏やかなティッカー（テロップ）回転
+   */
+  function startTickerRotation(totalCount) {
+    if (notifyTickerTimerId) {
+      clearInterval(notifyTickerTimerId);
+      notifyTickerTimerId = null;
+    }
+
+    if (!notifyTicker || !notifyTickerText) return;
+
+    if (!notifyTickerEnabled) {
+      notifyTicker.style.display = 'none';
+      return;
+    }
+
+    notifyTicker.style.display = 'flex';
+
+    if (totalCount === 0 || currentTickerItems.length === 0) {
+      notifyTickerText.textContent = '未読なし ✨';
+      notifyTickerText.classList.remove('fade-out');
+      return;
+    }
+
+    // 最初のアイテムを表示
+    showTickerItem(currentTickerIndex % currentTickerItems.length);
+
+    if (currentTickerItems.length > 1) {
+      notifyTickerTimerId = setInterval(() => {
+        currentTickerIndex = (currentTickerIndex + 1) % currentTickerItems.length;
+        notifyTickerText.classList.add('fade-out');
+        setTimeout(() => {
+          showTickerItem(currentTickerIndex);
+          notifyTickerText.classList.remove('fade-out');
+          notifyTickerText.classList.add('fade-in');
+          setTimeout(() => notifyTickerText.classList.remove('fade-in'), 400);
+        }, 350);
+      }, 4800);
+    }
+  }
+
+  function showTickerItem(index) {
+    if (!currentTickerItems || currentTickerItems.length === 0) return;
+    const item = currentTickerItems[index];
+    if (!item) return;
+    notifyTickerText.textContent = `${item.prefix} ${item.sender}: ${item.text}`;
+  }
+
+  /**
+   * 通知モーダルの開閉
+   */
+  function openNotifyModal() {
+    if (!notifyModal) return;
+    renderNotificationModalList();
+    notifyModal.classList.add('open');
+  }
+
+  function closeNotifyModal() {
+    if (!notifyModal) return;
+    notifyModal.classList.remove('open');
+  }
+
+  /**
+   * 通知モーダルのリストを描画
+   */
+  function renderNotificationModalList() {
+    if (!notifyList) return;
+    notifyList.innerHTML = '';
+
+    const cwItems = (notifyData.chatwork && notifyData.chatwork.items) || [];
+    const gmailItems = (notifyData.gmail && notifyData.gmail.items) || [];
+
+    let filteredItems = [];
+
+    if (notifyActiveTab === 'all') {
+      cwItems.forEach(i => filteredItems.push({ service: 'chatwork', ...i }));
+      gmailItems.forEach(i => filteredItems.push({ service: 'gmail', ...i }));
+      filteredItems.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    } else if (notifyActiveTab === 'chatwork') {
+      filteredItems = cwItems.map(i => ({ service: 'chatwork', ...i }));
+    } else if (notifyActiveTab === 'gmail') {
+      filteredItems = gmailItems.map(i => ({ service: 'gmail', ...i }));
+    }
+
+    if (filteredItems.length === 0) {
+      notifyList.innerHTML = `
+        <div class="notify-empty-state">
+          <div class="notify-empty-icon">🌿</div>
+          <div class="notify-empty-text">未読はありません</div>
+          <div class="notify-empty-sub">現在確認すべき未読メッセージやメールはありません。風景をゆっくりお楽しみください。</div>
+        </div>
+      `;
+      return;
+    }
+
+    filteredItems.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'notify-item';
+
+      if (item.service === 'chatwork') {
+        const timeDisplay = item.date_formatted || (item.date ? new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+        const chatworkLink = item.room_id ? `https://www.chatwork.com/#!rid${item.room_id}` : 'https://www.chatwork.com/';
+
+        card.innerHTML = `
+          <div class="notify-item-header">
+            <div class="notify-item-sender-wrap">
+              <span class="notify-service-tag tag-chatwork">💬 Chatwork</span>
+              <span class="notify-item-sender">${escapeHtml(item.sender_name || 'Unknown')}</span>
+            </div>
+            <span class="notify-item-time">${escapeHtml(timeDisplay)}</span>
+          </div>
+          ${item.room_name ? `<div class="notify-item-room">📁 ${escapeHtml(item.room_name)}</div>` : ''}
+          <div class="notify-item-body">${escapeHtml(item.body || '(本文なし)')}</div>
+          <div class="notify-item-actions">
+            <a href="${chatworkLink}" target="_blank" rel="noopener noreferrer" class="notify-open-btn">
+              Chatworkで開く
+              <svg viewBox="0 0 24 24"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3m-2 16H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7z"/></svg>
+            </a>
+          </div>
+        `;
+      } else {
+        // Gmail
+        const timeDisplay = item.date_formatted || (item.date ? new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+        const gmailLink = 'https://mail.google.com/';
+
+        card.innerHTML = `
+          <div class="notify-item-header">
+            <div class="notify-item-sender-wrap">
+              <span class="notify-service-tag tag-gmail">✉️ Gmail</span>
+              <span class="notify-item-sender">${escapeHtml(item.from || 'Unknown')}</span>
+            </div>
+            <span class="notify-item-time">${escapeHtml(timeDisplay)}</span>
+          </div>
+          <div class="notify-item-subject">${escapeHtml(item.subject || '(件名なし)')}</div>
+          ${item.snippet ? `<div class="notify-item-body">${escapeHtml(item.snippet)}</div>` : ''}
+          <div class="notify-item-actions">
+            <a href="${gmailLink}" target="_blank" rel="noopener noreferrer" class="notify-open-btn">
+              Gmailで開く
+              <svg viewBox="0 0 24 24"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3m-2 16H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7z"/></svg>
+            </a>
+          </div>
+        `;
+      }
+
+      notifyList.appendChild(card);
+    });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // =========================================================================
+  // 10. イベントリスナー登録
+  // =========================================================================
+  function initEvents() {
+    // 静止画表示時の画面タップで地図を開く
+    viewContainer.addEventListener('click', () => {
+      if (!panoContainer.classList.contains('active')) {
+        openMapModal();
+      }
+    });
+
+    // 360°パノラマ操作時のタップ判定（ぐりぐり操作と地図オープン用タップを分離）
+    let panoStartX = 0;
+    let panoStartY = 0;
+    let panoStartTime = 0;
+    let panoMoved = false;
+
+    panoContainer.addEventListener('pointerdown', (e) => {
+      panoStartX = e.clientX;
+      panoStartY = e.clientY;
+      panoStartTime = Date.now();
+      panoMoved = false;
+    });
+
+    panoContainer.addEventListener('pointermove', (e) => {
+      const dx = e.clientX - panoStartX;
+      const dy = e.clientY - panoStartY;
+      if (Math.hypot(dx, dy) > 8) {
+        panoMoved = true;
+      }
+    });
+
+    panoContainer.addEventListener('pointerup', (e) => {
+      const elapsed = Date.now() - panoStartTime;
+      // 8px以内の微小移動 ＆ 280ms以内の短時間タップの場合のみ地図を開く
+      if (!panoMoved && elapsed < 280) {
+        openMapModal();
+      }
+    });
+
+    // 右上コントロール
+    btnTogglePlay.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePlayPause();
+    });
+
+    btnNext.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showNextLocation();
+    });
+
+    // アプリ強制再読み込み（PWAキャッシュバイパス）
+    function forceReloadApp() {
+      const url = new URL(window.location.href);
+      url.searchParams.set('reload', Date.now().toString());
+      window.location.replace(url.toString());
+    }
+
+    if (btnReload) {
+      btnReload.addEventListener('click', (e) => {
+        e.stopPropagation();
+        forceReloadApp();
+      });
+    }
+
+    const btnForceReload = document.getElementById('btn-force-reload');
+    if (btnForceReload) {
+      btnForceReload.addEventListener('click', () => {
+        forceReloadApp();
+      });
+    }
+
+    btnSettings.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openSettingsModal();
+    });
+
+    // 地図モーダル閉じる
+    btnCloseMap.addEventListener('click', closeMapModal);
+    mapModal.addEventListener('click', (e) => {
+      if (e.target === mapModal) {
+        closeMapModal();
+      }
+    });
+
+    // お気に入りトグル（場所カード内）
+    if (btnFavToggle) {
+      btnFavToggle.addEventListener('click', (e) => {
+        e.stopPropagation(); // カードタップで地図が開かないように伝播阻止
+        toggleFavoriteCurrentLocation();
+      });
+    }
+
+    // お気に入りトグル（地図モーダル内）
+    if (btnModalFav) {
+      btnModalFav.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFavoriteCurrentLocation();
+      });
+    }
+
+    // お気に入り一覧モーダルを開く
+    if (btnOpenFavorites) {
+      btnOpenFavorites.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openFavoritesModal();
+      });
+    }
+
+    // お気に入り一覧モーダルを閉じる
+    if (btnCloseFavorites) {
+      btnCloseFavorites.addEventListener('click', closeFavoritesModal);
+    }
+    if (favoritesModal) {
+      favoritesModal.addEventListener('click', (e) => {
+        if (e.target === favoritesModal) {
+          closeFavoritesModal();
+        }
+      });
+    }
+
+    // お気に入り全削除ボタン
+    if (btnClearAllFavorites) {
+      btnClearAllFavorites.addEventListener('click', (e) => {
+        e.stopPropagation();
+        clearAllFavorites();
+      });
+    }
+
+    // 設定モーダル閉じる & 保存
+    btnCloseSettings.addEventListener('click', closeSettingsModal);
+    settingsModal.addEventListener('click', (e) => {
+      if (e.target === settingsModal) {
+        closeSettingsModal();
+      }
+    });
+    btnSaveSettings.addEventListener('click', saveSettings);
+
+    // ウィジェット位置初期化ボタン
+    const btnResetPositions = document.getElementById('btn-reset-positions');
+    if (btnResetPositions) {
+      btnResetPositions.addEventListener('click', () => {
+        draggableElements.forEach(item => item.resetToDefault());
+        closeSettingsModal();
+      });
+    }
+
+    // 時計ウィジェット & 場所カード & 通知ウィジェットをドラッグ可能に
+    const clockWidget = document.getElementById('clock-widget');
+    makeDraggable(clockWidget, 'random_sv_clock_pos', {
+      onClick: (e) => {
+        e.stopPropagation();
+      }
+    });
+
+    makeDraggable(locCard, 'random_sv_loc_pos', {
+      onClick: (e) => {
+        e.stopPropagation();
+        openMapModal();
+      }
+    });
+
+    if (notifyWidget) {
+      makeDraggable(notifyWidget, STORAGE_KEY_NOTIFY_POS, {
+        onClick: (e) => {
+          e.stopPropagation();
+          openNotifyModal();
+        }
+      });
+    }
+
+    // 通知モーダルイベント
+    if (btnCloseNotify) {
+      btnCloseNotify.addEventListener('click', closeNotifyModal);
+    }
+    if (notifyModal) {
+      notifyModal.addEventListener('click', (e) => {
+        if (e.target === notifyModal) {
+          closeNotifyModal();
+        }
+      });
+    }
+    if (btnRefreshNotify) {
+      btnRefreshNotify.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fetchNotificationData(true);
+      });
+    }
+    if (btnOpenNotifySettings) {
+      btnOpenNotifySettings.addEventListener('click', () => {
+        closeNotifyModal();
+        openSettingsModal();
+      });
+    }
+
+    // 通知タブ切り替え
+    const notifyTabBtns = document.querySelectorAll('.notify-tab-btn');
+    notifyTabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        notifyTabBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        notifyActiveTab = btn.dataset.tab || 'all';
+        renderNotificationModalList();
+      });
+    });
+
+    // 設定モーダル内の通知連携項目
+    if (selectNotifySource && settingsGasUrlGroup) {
+      selectNotifySource.addEventListener('change', () => {
+        settingsGasUrlGroup.style.display = (selectNotifySource.value === 'gas') ? 'block' : 'none';
+      });
+    }
+
+    if (btnShowGasInstructions && gasInstructionsCard) {
+      btnShowGasInstructions.addEventListener('click', () => {
+        const isHidden = gasInstructionsCard.style.display === 'none';
+        gasInstructionsCard.style.display = isHidden ? 'block' : 'none';
+        btnShowGasInstructions.textContent = isHidden ? '閉じる' : '❓ GAS設定手順とコード';
+      });
+    }
+
+    if (btnTestGas && inputNotifyGasUrl) {
+      btnTestGas.addEventListener('click', () => {
+        const url = inputNotifyGasUrl.value.trim();
+        if (!url) {
+          showToast('GAS Web App URL を入力してください');
+          return;
+        }
+        btnTestGas.disabled = true;
+        btnTestGas.textContent = '接続中...';
+
+        fetch(url, { method: 'GET', mode: 'cors' })
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+          })
+          .then(data => {
+            const cwCount = (data.chatwork && data.chatwork.unread_count) || 0;
+            const gmCount = (data.gmail && data.gmail.unread_count) || 0;
+            showToast(`✅ 接続成功！ (Chatwork: ${cwCount}件, Gmail: ${gmCount}件)`);
+          })
+          .catch(err => {
+            console.error('GAS接続テスト失敗:', err);
+            showToast('❌ 接続に失敗しました。URLまたはデプロイ権限を確認してください');
+          })
+          .finally(() => {
+            btnTestGas.disabled = false;
+            btnTestGas.textContent = '🔗 接続テスト';
+          });
+      });
+    }
+
+    if (btnCopyGasCode) {
+      btnCopyGasCode.addEventListener('click', () => {
+        // NotificationHub.gs のコードを取得してクリップボードにコピー
+        fetch('NotificationHub.gs')
+          .then(res => res.text())
+          .then(code => {
+            navigator.clipboard.writeText(code).then(() => {
+              showToast('📋 GASコードをクリップボードにコピーしました！');
+            }).catch(() => {
+              showToast('コピーに失敗しました。NotificationHub.gsファイルを開いてください');
+            });
+          })
+          .catch(() => {
+            showToast('NotificationHub.gs を直接エディタで開いてコピーしてください');
+          });
+      });
+    }
+
+    // 画面向き変更・リサイズ時の位置再計算
+    window.addEventListener('resize', () => {
+      draggableElements.forEach(item => {
+        const saved = localStorage.getItem(item.storageKey);
+        if (saved) {
+          try {
+            const { ratioX, ratioY } = JSON.parse(saved);
+            item.applyRatioPosition(ratioX, ratioY);
+          } catch (err) {}
+        }
+      });
+
+      if (leafletMap && mapModal.classList.contains('open')) {
+        setTimeout(() => leafletMap.invalidateSize(), 200);
+      }
+    });
+
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        draggableElements.forEach(item => {
+          const saved = localStorage.getItem(item.storageKey);
+          if (saved) {
+            try {
+              const { ratioX, ratioY } = JSON.parse(saved);
+              item.applyRatioPosition(ratioX, ratioY);
+            } catch (err) {}
+          }
+        });
+        if (leafletMap && mapModal.classList.contains('open')) {
+          leafletMap.invalidateSize();
+        }
+      }, 300);
+    });
+  }
+
+  // =========================================================================
+  // 11. 初期化
+  // =========================================================================
+  function init() {
+    loadFavorites();
+    initClockTicks();
+    updateClock();
+    initEvents();
+    initNotificationSystem();
+
+    // 最初の地点を表示＆タイマースタート
+    showNextLocation();
+    startTimer();
+  }
+
+  // DOMContentLoadedで起動
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+
+</script>
+</body>
+</html>

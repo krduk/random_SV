@@ -14,7 +14,7 @@
   <!-- Leaflet CSS for Map Overlay -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=3.1">
+  <link rel="stylesheet" href="style.css?v=3.2">
 </head>
 <body>
   <div id="app-container">
@@ -60,6 +60,37 @@
             <circle class="clock-center-dot" cx="50" cy="50" r="3.2"></circle>
             <circle class="clock-center-inner" cx="50" cy="50" r="1.5"></circle>
           </svg>
+        </div>
+
+        <!-- 通知ウィジェット（Chatwork & Gmail）: ドラッグ移動可能・風景に馴染むすりガラスピル -->
+        <div id="notify-widget" class="notify-widget" title="タップして未読詳細を表示 (ドラッグで移動可能)">
+          <div class="notify-badge-group">
+            <!-- Chatwork インジケータ -->
+            <div id="notify-cw-indicator" class="notify-service-indicator" title="Chatwork">
+              <svg class="notify-service-icon icon-chatwork" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.03 2 11c0 2.87 1.5 5.43 3.86 7.07-.15.93-.65 2.5-1.84 3.73 0 0 2.2-.14 4.14-1.48.61.12 1.25.18 1.84.18 5.52 0 10-4.03 10-9s-4.48-9-10-9z"/>
+              </svg>
+              <span id="notify-cw-badge" class="notify-count-badge" style="display:none;">0</span>
+            </div>
+
+            <div class="notify-divider"></div>
+
+            <!-- Gmail インジケータ -->
+            <div id="notify-gmail-indicator" class="notify-service-indicator" title="Gmail">
+              <svg class="notify-service-icon icon-gmail" viewBox="0 0 24 24">
+                <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+              </svg>
+              <span id="notify-gmail-badge" class="notify-count-badge" style="display:none;">0</span>
+            </div>
+          </div>
+
+          <!-- ティッカー表示エリア（未読がある時、最新1件のタイトル/送信元を1行で穏やかに表示） -->
+          <div id="notify-ticker" class="notify-ticker">
+            <span id="notify-ticker-text" class="notify-ticker-text">未読なし</span>
+          </div>
+
+          <!-- 同期中ドット -->
+          <span id="notify-sync-spinner" class="notify-sync-spinner" style="display:none;"></span>
         </div>
 
         <!-- 右上コントロール -->
@@ -214,9 +245,70 @@
           </p>
         </div>
 
+        <div class="settings-divider"></div>
+        <div class="settings-section-title">📬 未読通知 (Chatwork & Gmail)</div>
+
+        <div class="settings-group">
+          <div class="settings-checkbox-row">
+            <input type="checkbox" id="check-notify-enabled" class="settings-checkbox" checked>
+            <label for="check-notify-enabled">通知ウィジェットを表示する</label>
+          </div>
+          <p class="settings-hint">画面にすりガラスの未読バッジを表示します。指でドラッグして好きな位置に配置できます。</p>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-checkbox-row">
+            <input type="checkbox" id="check-notify-ticker" class="settings-checkbox" checked>
+            <label for="check-notify-ticker">ティッカー表示（送信元・件名を1行テロップ）</label>
+          </div>
+          <p class="settings-hint">未読がある時、ウィジェット内に最新メールやメッセージを風景の邪魔にならないよう穏やかに表示します。</p>
+        </div>
+
+        <div class="settings-group">
+          <label for="select-notify-source">データ連携元</label>
+          <select id="select-notify-source" class="settings-select">
+            <option value="demo" selected>🌟 デモ表示（動作確認用サンプル）</option>
+            <option value="gas">🔗 Google Apps Script (GAS) Webアプリ連携</option>
+          </select>
+        </div>
+
+        <div id="settings-gas-url-group" class="settings-group" style="display:none;">
+          <label for="input-notify-gas-url">GAS Web App URL</label>
+          <input type="url" id="input-notify-gas-url" class="settings-input" value="https://script.google.com/macros/s/AKfycbw8Ogsccbj67RVnDV-f3aZ0UONdgH_-9bVzS8cupdmjvJXFTM9bL13u4uWDYbqCHu4wiQ/exec" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+          <div class="settings-gas-actions">
+            <button id="btn-test-gas-connection" type="button" class="settings-btn-secondary">🔗 接続テスト</button>
+            <button id="btn-show-gas-instructions" type="button" class="settings-btn-secondary">❓ GAS設定手順とコード</button>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <label for="select-notify-interval">通知チェック間隔</label>
+          <select id="select-notify-interval" class="settings-select">
+            <option value="60">1分ごと</option>
+            <option value="180" selected>3分ごと（おすすめ）</option>
+            <option value="300">5分ごと</option>
+            <option value="600">10分ごと</option>
+          </select>
+        </div>
+
+        <!-- GAS設定手順アコーディオン -->
+        <div id="gas-instructions-card" class="gas-instructions-card" style="display:none;">
+          <h4>GAS (Google Apps Script) の設定手順</h4>
+          <ol>
+            <li><strong>NotificationHub.gs</strong>（本アプリフォルダ内に同梱）の内容をコピーします。</li>
+            <li><a href="https://script.google.com" target="_blank" rel="noopener">Google Apps Script</a> で新規プロジェクトを作成し、コードを貼り付けて保存します。</li>
+            <li>Chatworkも連携する場合: GASの「プロジェクトの設定」→「スクリプトプロパティ」に <code>CHATWORK_API_TOKEN</code> を追加します。</li>
+            <li>「デプロイ」→「新しいデプロイ」→「ウェブアプリ」を選択し、アクセス権を「<strong>全員</strong>」にしてデプロイします。</li>
+            <li>発行されたWeb App URLを上の入力欄に貼り付けて保存します。</li>
+          </ol>
+          <button id="btn-copy-gas-code" type="button" class="settings-btn-secondary">📋 GASコードをクリップボードにコピー</button>
+        </div>
+
+        <div class="settings-divider"></div>
+
         <div class="settings-group">
           <label>ウィジェットの配置</label>
-          <button id="btn-reset-positions" type="button" class="settings-btn-secondary">時計と場所カードの位置を初期化</button>
+          <button id="btn-reset-positions" type="button" class="settings-btn-secondary">時計・通知・場所カードの位置を初期化</button>
         </div>
 
         <div class="settings-group">
@@ -225,6 +317,44 @@
         </div>
 
         <button id="btn-save-settings" class="settings-btn-save">設定を保存する</button>
+      </div>
+    </div>
+
+    <!-- 未読通知詳細モーダル（画面タップで表示） -->
+    <div id="notify-modal-backdrop" class="modal-backdrop">
+      <div class="notify-modal-card">
+        <div class="notify-header">
+          <div class="notify-title-wrap">
+            <h3>📬 未読メッセージ & メール</h3>
+            <span id="notify-modal-total-badge" class="notify-modal-total-badge">0件</span>
+          </div>
+          <div class="notify-header-actions">
+            <button id="btn-refresh-notifications" class="notify-refresh-btn" type="button" title="今すぐ再チェック" aria-label="更新">
+              <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              <span>更新</span>
+            </button>
+            <button id="btn-close-notify" class="close-btn" aria-label="閉じる">
+              <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- タブ切り替え -->
+        <div class="notify-tabs">
+          <button class="notify-tab-btn active" data-tab="all">すべて <span id="tab-badge-all" class="tab-badge">0</span></button>
+          <button class="notify-tab-btn" data-tab="chatwork">Chatwork <span id="tab-badge-cw" class="tab-badge">0</span></button>
+          <button class="notify-tab-btn" data-tab="gmail">Gmail <span id="tab-badge-gmail" class="tab-badge">0</span></button>
+        </div>
+
+        <!-- 一覧スクロール領域 -->
+        <div id="notify-list" class="notify-list">
+          <!-- JSで動的生成 -->
+        </div>
+
+        <div class="notify-footer">
+          <span id="notify-last-updated" class="notify-last-updated">未取得</span>
+          <button id="btn-open-notify-settings" class="notify-settings-link-btn" type="button">⚙️ 通知連携設定</button>
+        </div>
       </div>
     </div>
 
@@ -262,6 +392,6 @@
   <!-- World Locations Data -->
   <script src="locations.js?v=3.0"></script>
   <!-- Main Application Logic -->
-  <script src="app.js?v=3.1"></script>
+  <script src="app.js?v=3.2"></script>
 </body>
 </html>
