@@ -298,31 +298,32 @@
     if (!window.google || !window.google.maps) return;
     if (!geocoder) geocoder = new google.maps.Geocoder();
 
-    geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+    geocoder.geocode({ location: { lat: lat, lng: lng } }, function (results, status) {
       if (status === 'OK' && results && results[0]) {
-        const components = results[0].address_components;
-        let country = '';
-        let adminArea = '';
-        let locality = '';
-        let sublocality = '';
+        var components = results[0].address_components;
+        var country = '';
+        var adminArea = '';
+        var locality = '';
+        var sublocality = '';
 
-        for (const c of components) {
-          if (c.types.includes('country')) {
+        for (var i = 0; i < components.length; i++) {
+          var c = components[i];
+          if (c.types && c.types.indexOf('country') !== -1) {
             country = c.long_name;
-          } else if (c.types.includes('administrative_area_level_1')) {
+          } else if (c.types && c.types.indexOf('administrative_area_level_1') !== -1) {
             adminArea = c.long_name;
-          } else if (c.types.includes('locality')) {
+          } else if (c.types && c.types.indexOf('locality') !== -1) {
             locality = c.long_name;
-          } else if (c.types.includes('sublocality_level_1') || c.types.includes('administrative_area_level_2')) {
+          } else if (c.types && (c.types.indexOf('sublocality_level_1') !== -1 || c.types.indexOf('administrative_area_level_2') !== -1)) {
             if (!sublocality) sublocality = c.long_name;
           }
         }
 
-        const flagPrefix = defaultFlag ? `${defaultFlag} ` : '';
-        if (country) locCountry.textContent = `${flagPrefix}${country}`;
+        var flagPrefix = defaultFlag ? (defaultFlag + ' ') : '';
+        if (country && locCountry) locCountry.textContent = flagPrefix + country;
 
-        const details = [adminArea, locality, sublocality].filter(Boolean);
-        if (details.length > 0) {
+        var details = [adminArea, locality, sublocality].filter(Boolean);
+        if (details.length > 0 && locDetail) {
           locDetail.textContent = details.join(' ');
           if (currentLocation) {
             currentLocation.addressText = details.join(' ');
@@ -1072,9 +1073,11 @@
       const saved = safeStorage.getItem(storageKey);
       if (saved) {
         try {
-          const { ratioX, ratioY } = JSON.parse(saved);
-          applyRatioPosition(ratioX, ratioY);
-          return;
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed.ratioX === 'number' && typeof parsed.ratioY === 'number') {
+            applyRatioPosition(parsed.ratioX, parsed.ratioY);
+            return;
+          }
         } catch (e) {
           console.error(e);
         }
@@ -1142,7 +1145,7 @@
         const rect = element.getBoundingClientRect();
         const ratioX = rect.left / window.innerWidth;
         const ratioY = rect.top / window.innerHeight;
-        safeStorage.setItem(storageKey, JSON.stringify({ ratioX, ratioY }));
+        safeStorage.setItem(storageKey, JSON.stringify({ ratioX: ratioX, ratioY: ratioY }));
         isDragging = false;
         return;
       }
@@ -1170,7 +1173,12 @@
       isDragging = false;
     });
 
-    draggableElements.push({ element, storageKey, applyRatioPosition, resetToDefault });
+    draggableElements.push({
+      element: element,
+      storageKey: storageKey,
+      applyRatioPosition: applyRatioPosition,
+      resetToDefault: resetToDefault
+    });
     restorePosition();
   }
 
@@ -1876,13 +1884,15 @@
         const saved = safeStorage.getItem(item.storageKey);
         if (saved) {
           try {
-            const { ratioX, ratioY } = JSON.parse(saved);
-            item.applyRatioPosition(ratioX, ratioY);
+            const parsed = JSON.parse(saved);
+            if (parsed && typeof parsed.ratioX === 'number' && typeof parsed.ratioY === 'number') {
+              item.applyRatioPosition(parsed.ratioX, parsed.ratioY);
+            }
           } catch (err) {}
         }
       });
 
-      if (leafletMap && mapModal.classList.contains('open')) {
+      if (leafletMap && mapModal && mapModal.classList.contains('open')) {
         setTimeout(() => leafletMap.invalidateSize(), 200);
       }
     });
@@ -1893,12 +1903,14 @@
           const saved = safeStorage.getItem(item.storageKey);
           if (saved) {
             try {
-              const { ratioX, ratioY } = JSON.parse(saved);
-              item.applyRatioPosition(ratioX, ratioY);
+              const parsed = JSON.parse(saved);
+              if (parsed && typeof parsed.ratioX === 'number' && typeof parsed.ratioY === 'number') {
+                item.applyRatioPosition(parsed.ratioX, parsed.ratioY);
+              }
             } catch (err) {}
           }
         });
-        if (leafletMap && mapModal.classList.contains('open')) {
+        if (leafletMap && mapModal && mapModal.classList.contains('open')) {
           leafletMap.invalidateSize();
         }
       }, 300);
