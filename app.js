@@ -85,88 +85,102 @@
   let currentMarker = null;
   let isTransitioning = false;
 
-  // --- DOM要素キャッシュ ---
-  const viewContainer = document.getElementById('view-container');
-  const sceneCurtain = document.getElementById('scene-curtain');
-  const layerA = document.getElementById('view-layer-a');
-  const layerB = document.getElementById('view-layer-b');
-  const progressFill = document.getElementById('progress-bar-fill');
+  // --- DOM要素キャッシュ（init時に確実にバインド） ---
+  let viewContainer, sceneCurtain, layerA, layerB, progressFill;
+  let locCard, locCountry, locDetail, btnFavToggle;
+  let hourHand, minuteHand, secondHand, clockTicksGroup;
+  let notifyWidget, notifyCwBadge, notifyGmailBadge, notifyTicker, notifyTickerText, notifySyncSpinner;
+  let notifyModal, btnCloseNotify, btnRefreshNotify, notifyModalTotalBadge, tabBadgeAll, tabBadgeCw, tabBadgeGmail, notifyList, notifyLastUpdated, btnOpenNotifySettings;
+  let checkNotifyEnabled, checkNotifyTicker, selectNotifySource, settingsGasUrlGroup, inputNotifyGasUrl, btnTestGas, btnShowGasInstructions, gasInstructionsCard, btnCopyGasCode, selectNotifyInterval;
+  let btnTogglePlay, iconPause, iconPlay, btnNext, btnOpenFavorites, favBadge, btnReload, btnSettings;
+  let mapModal, btnCloseMap, modalPlaceTitle, modalPlaceSub, modalCoords, btnModalFav, modalFavText, btnOpenGoogleMaps;
+  let settingsModal, btnCloseSettings, inputApiKey, selectInterval, selectWanderMode, btnSaveSettings;
+  let favoritesModal, btnCloseFavorites, favModalCount, favoritesListContainer, btnClearAllFavorites;
+  let toastNotification, panoContainer;
 
-  const locCard = document.getElementById('location-card');
-  const locCountry = document.getElementById('loc-country');
-  const locDetail = document.getElementById('loc-detail');
-  const btnFavToggle = document.getElementById('btn-fav-toggle');
+  function initElements() {
+    viewContainer = document.getElementById('view-container');
+    sceneCurtain = document.getElementById('scene-curtain');
+    layerA = document.getElementById('view-layer-a');
+    layerB = document.getElementById('view-layer-b');
+    progressFill = document.getElementById('progress-bar-fill');
 
-  const hourHand = document.getElementById('hour-hand');
-  const minuteHand = document.getElementById('minute-hand');
-  const secondHand = document.getElementById('second-hand');
-  const clockTicksGroup = document.getElementById('clock-ticks');
+    locCard = document.getElementById('location-card');
+    locCountry = document.getElementById('loc-country');
+    locDetail = document.getElementById('loc-detail');
+    btnFavToggle = document.getElementById('btn-fav-toggle');
 
-  // 通知ウィジェット DOM
-  const notifyWidget = document.getElementById('notify-widget');
-  const notifyCwBadge = document.getElementById('notify-cw-badge');
-  const notifyGmailBadge = document.getElementById('notify-gmail-badge');
-  const notifyTicker = document.getElementById('notify-ticker');
-  const notifyTickerText = document.getElementById('notify-ticker-text');
-  const notifySyncSpinner = document.getElementById('notify-sync-spinner');
+    hourHand = document.getElementById('hour-hand');
+    minuteHand = document.getElementById('minute-hand');
+    secondHand = document.getElementById('second-hand');
+    clockTicksGroup = document.getElementById('clock-ticks');
 
-  // 通知詳細モーダル DOM
-  const notifyModal = document.getElementById('notify-modal-backdrop');
-  const btnCloseNotify = document.getElementById('btn-close-notify');
-  const btnRefreshNotify = document.getElementById('btn-refresh-notifications');
-  const notifyModalTotalBadge = document.getElementById('notify-modal-total-badge');
-  const tabBadgeAll = document.getElementById('tab-badge-all');
-  const tabBadgeCw = document.getElementById('tab-badge-cw');
-  const tabBadgeGmail = document.getElementById('tab-badge-gmail');
-  const notifyList = document.getElementById('notify-list');
-  const notifyLastUpdated = document.getElementById('notify-last-updated');
-  const btnOpenNotifySettings = document.getElementById('btn-open-notify-settings');
+    notifyWidget = document.getElementById('notify-widget');
+    notifyCwBadge = document.getElementById('notify-cw-badge');
+    notifyGmailBadge = document.getElementById('notify-gmail-badge');
+    notifyTicker = document.getElementById('notify-ticker');
+    notifyTickerText = document.getElementById('notify-ticker-text');
+    notifySyncSpinner = document.getElementById('notify-sync-spinner');
 
-  // 設定モーダル内の通知項目 DOM
-  const checkNotifyEnabled = document.getElementById('check-notify-enabled');
-  const checkNotifyTicker = document.getElementById('check-notify-ticker');
-  const selectNotifySource = document.getElementById('select-notify-source');
-  const settingsGasUrlGroup = document.getElementById('settings-gas-url-group');
-  const inputNotifyGasUrl = document.getElementById('input-notify-gas-url');
-  const btnTestGas = document.getElementById('btn-test-gas-connection');
-  const btnShowGasInstructions = document.getElementById('btn-show-gas-instructions');
-  const gasInstructionsCard = document.getElementById('gas-instructions-card');
-  const btnCopyGasCode = document.getElementById('btn-copy-gas-code');
-  const selectNotifyInterval = document.getElementById('select-notify-interval');
+    notifyModal = document.getElementById('notify-modal-backdrop');
+    btnCloseNotify = document.getElementById('btn-close-notify');
+    btnRefreshNotify = document.getElementById('btn-refresh-notifications');
+    notifyModalTotalBadge = document.getElementById('notify-modal-total-badge');
+    tabBadgeAll = document.getElementById('tab-badge-all');
+    tabBadgeCw = document.getElementById('tab-badge-cw');
+    tabBadgeGmail = document.getElementById('tab-badge-gmail');
+    notifyList = document.getElementById('notify-list');
+    notifyLastUpdated = document.getElementById('notify-last-updated');
+    btnOpenNotifySettings = document.getElementById('btn-open-notify-settings');
 
-  const btnTogglePlay = document.getElementById('btn-toggle-play');
-  const iconPause = document.getElementById('icon-pause');
-  const iconPlay = document.getElementById('icon-play');
-  const btnNext = document.getElementById('btn-next');
-  const btnOpenFavorites = document.getElementById('btn-open-favorites');
-  const favBadge = document.getElementById('fav-badge');
-  const btnReload = document.getElementById('btn-reload');
-  const btnSettings = document.getElementById('btn-settings');
+    checkNotifyEnabled = document.getElementById('check-notify-enabled');
+    checkNotifyTicker = document.getElementById('check-notify-ticker');
+    selectNotifySource = document.getElementById('select-notify-source');
+    settingsGasUrlGroup = document.getElementById('settings-gas-url-group');
+    inputNotifyGasUrl = document.getElementById('input-notify-gas-url');
+    btnTestGas = document.getElementById('btn-test-gas-connection');
+    btnShowGasInstructions = document.getElementById('btn-show-gas-instructions');
+    gasInstructionsCard = document.getElementById('gas-instructions-card');
+    btnCopyGasCode = document.getElementById('btn-copy-gas-code');
+    selectNotifyInterval = document.getElementById('select-notify-interval');
 
-  const mapModal = document.getElementById('map-modal-backdrop');
-  const btnCloseMap = document.getElementById('btn-close-map');
-  const modalPlaceTitle = document.getElementById('modal-place-title');
-  const modalPlaceSub = document.getElementById('modal-place-sub');
-  const modalCoords = document.getElementById('modal-coords');
-  const btnModalFav = document.getElementById('btn-modal-fav');
-  const modalFavText = document.getElementById('modal-fav-text');
-  const btnOpenGoogleMaps = document.getElementById('btn-open-google-maps');
+    btnTogglePlay = document.getElementById('btn-toggle-play');
+    iconPause = document.getElementById('icon-pause');
+    iconPlay = document.getElementById('icon-play');
+    btnNext = document.getElementById('btn-next');
+    btnOpenFavorites = document.getElementById('btn-open-favorites');
+    favBadge = document.getElementById('fav-badge');
+    btnReload = document.getElementById('btn-reload');
+    btnSettings = document.getElementById('btn-settings');
 
-  const settingsModal = document.getElementById('settings-modal-backdrop');
-  const btnCloseSettings = document.getElementById('btn-close-settings');
-  const inputApiKey = document.getElementById('input-api-key');
-  const selectInterval = document.getElementById('select-interval');
-  const selectWanderMode = document.getElementById('select-wander-mode');
-  const btnSaveSettings = document.getElementById('btn-save-settings');
+    mapModal = document.getElementById('map-modal-backdrop');
+    btnCloseMap = document.getElementById('btn-close-map');
+    modalPlaceTitle = document.getElementById('modal-place-title');
+    modalPlaceSub = document.getElementById('modal-place-sub');
+    modalCoords = document.getElementById('modal-coords');
+    btnModalFav = document.getElementById('btn-modal-fav');
+    modalFavText = document.getElementById('modal-fav-text');
+    btnOpenGoogleMaps = document.getElementById('btn-open-google-maps');
 
-  const favoritesModal = document.getElementById('favorites-modal-backdrop');
-  const btnCloseFavorites = document.getElementById('btn-close-favorites');
-  const favModalCount = document.getElementById('fav-modal-count');
-  const favoritesListContainer = document.getElementById('favorites-list');
-  const btnClearAllFavorites = document.getElementById('btn-clear-all-favorites');
+    settingsModal = document.getElementById('settings-modal-backdrop');
+    btnCloseSettings = document.getElementById('btn-close-settings');
+    inputApiKey = document.getElementById('input-api-key');
+    selectInterval = document.getElementById('select-interval');
+    selectWanderMode = document.getElementById('select-wander-mode');
+    btnSaveSettings = document.getElementById('btn-save-settings');
 
-  const toastNotification = document.getElementById('toast-notification');
-  const panoContainer = document.getElementById('pano-container');
+    favoritesModal = document.getElementById('favorites-modal-backdrop');
+    btnCloseFavorites = document.getElementById('btn-close-favorites');
+    favModalCount = document.getElementById('fav-modal-count');
+    favoritesListContainer = document.getElementById('favorites-list');
+    btnClearAllFavorites = document.getElementById('btn-clear-all-favorites');
+
+    toastNotification = document.getElementById('toast-notification');
+    panoContainer = document.getElementById('pano-container');
+  }
+
+  // 初期ロード時にも即座に一度取得を試みる
+  initElements();
   let isGoogleMapsLoaded = false;
   let googlePano = null;
 
@@ -174,6 +188,9 @@
   // 1. アナログ針時計の構築 & 更新
   // =========================================================================
   function initClockTicks() {
+    if (!clockTicksGroup) clockTicksGroup = document.getElementById('clock-ticks');
+    if (!clockTicksGroup) return;
+
     const cx = 50;
     const cy = 50;
     const r = 44;
@@ -199,6 +216,10 @@
   }
 
   function updateClock() {
+    if (!hourHand) hourHand = document.getElementById('hour-hand');
+    if (!minuteHand) minuteHand = document.getElementById('minute-hand');
+    if (!secondHand) secondHand = document.getElementById('second-hand');
+
     const now = new Date();
     const hours = now.getHours() % 12;
     const minutes = now.getMinutes();
@@ -210,9 +231,9 @@
     const minDeg = (minutes + seconds / 60) * 6;
     const secDeg = (seconds + millis / 1000) * 6;
 
-    hourHand.setAttribute('transform', `rotate(${hourDeg} 50 50)`);
-    minuteHand.setAttribute('transform', `rotate(${minDeg} 50 50)`);
-    secondHand.setAttribute('transform', `rotate(${secDeg} 50 50)`);
+    if (hourHand) hourHand.setAttribute('transform', `rotate(${hourDeg} 50 50)`);
+    if (minuteHand) minuteHand.setAttribute('transform', `rotate(${minDeg} 50 50)`);
+    if (secondHand) secondHand.setAttribute('transform', `rotate(${secDeg} 50 50)`);
 
     requestAnimationFrame(updateClock);
   }
@@ -1570,51 +1591,59 @@
   // =========================================================================
   function initEvents() {
     // 静止画表示時の画面タップで地図を開く
-    viewContainer.addEventListener('click', () => {
-      if (!panoContainer.classList.contains('active')) {
-        openMapModal();
-      }
-    });
+    if (viewContainer) {
+      viewContainer.addEventListener('click', () => {
+        if (panoContainer && !panoContainer.classList.contains('active')) {
+          openMapModal();
+        }
+      });
+    }
 
     // 360°パノラマ操作時のタップ判定（ぐりぐり操作と地図オープン用タップを分離）
-    let panoStartX = 0;
-    let panoStartY = 0;
-    let panoStartTime = 0;
-    let panoMoved = false;
+    if (panoContainer) {
+      let panoStartX = 0;
+      let panoStartY = 0;
+      let panoStartTime = 0;
+      let panoMoved = false;
 
-    panoContainer.addEventListener('pointerdown', (e) => {
-      panoStartX = e.clientX;
-      panoStartY = e.clientY;
-      panoStartTime = Date.now();
-      panoMoved = false;
-    });
+      panoContainer.addEventListener('pointerdown', (e) => {
+        panoStartX = e.clientX;
+        panoStartY = e.clientY;
+        panoStartTime = Date.now();
+        panoMoved = false;
+      });
 
-    panoContainer.addEventListener('pointermove', (e) => {
-      const dx = e.clientX - panoStartX;
-      const dy = e.clientY - panoStartY;
-      if (Math.hypot(dx, dy) > 8) {
-        panoMoved = true;
-      }
-    });
+      panoContainer.addEventListener('pointermove', (e) => {
+        const dx = e.clientX - panoStartX;
+        const dy = e.clientY - panoStartY;
+        if (Math.hypot(dx, dy) > 8) {
+          panoMoved = true;
+        }
+      });
 
-    panoContainer.addEventListener('pointerup', (e) => {
-      const elapsed = Date.now() - panoStartTime;
-      // 8px以内の微小移動 ＆ 280ms以内の短時間タップの場合のみ地図を開く
-      if (!panoMoved && elapsed < 280) {
-        openMapModal();
-      }
-    });
+      panoContainer.addEventListener('pointerup', (e) => {
+        const elapsed = Date.now() - panoStartTime;
+        // 8px以内の微小移動 ＆ 280ms以内の短時間タップの場合のみ地図を開く
+        if (!panoMoved && elapsed < 280) {
+          openMapModal();
+        }
+      });
+    }
 
     // 右上コントロール
-    btnTogglePlay.addEventListener('click', (e) => {
-      e.stopPropagation();
-      togglePlayPause();
-    });
+    if (btnTogglePlay) {
+      btnTogglePlay.addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePlayPause();
+      });
+    }
 
-    btnNext.addEventListener('click', (e) => {
-      e.stopPropagation();
-      showNextLocation();
-    });
+    if (btnNext) {
+      btnNext.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showNextLocation();
+      });
+    }
 
     // アプリ強制再読み込み（PWAキャッシュバイパス）
     function forceReloadApp() {
@@ -1637,18 +1666,22 @@
       });
     }
 
-    btnSettings.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openSettingsModal();
-    });
+    if (btnSettings) {
+      btnSettings.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openSettingsModal();
+      });
+    }
 
     // 地図モーダル閉じる
-    btnCloseMap.addEventListener('click', closeMapModal);
-    mapModal.addEventListener('click', (e) => {
-      if (e.target === mapModal) {
-        closeMapModal();
-      }
-    });
+    if (btnCloseMap) btnCloseMap.addEventListener('click', closeMapModal);
+    if (mapModal) {
+      mapModal.addEventListener('click', (e) => {
+        if (e.target === mapModal) {
+          closeMapModal();
+        }
+      });
+    }
 
     // お気に入りトグル（場所カード内）
     if (btnFavToggle) {
@@ -1695,13 +1728,15 @@
     }
 
     // 設定モーダル閉じる & 保存
-    btnCloseSettings.addEventListener('click', closeSettingsModal);
-    settingsModal.addEventListener('click', (e) => {
-      if (e.target === settingsModal) {
-        closeSettingsModal();
-      }
-    });
-    btnSaveSettings.addEventListener('click', saveSettings);
+    if (btnCloseSettings) btnCloseSettings.addEventListener('click', closeSettingsModal);
+    if (settingsModal) {
+      settingsModal.addEventListener('click', (e) => {
+        if (e.target === settingsModal) {
+          closeSettingsModal();
+        }
+      });
+    }
+    if (btnSaveSettings) btnSaveSettings.addEventListener('click', saveSettings);
 
     // ウィジェット位置初期化ボタン
     const btnResetPositions = document.getElementById('btn-reset-positions');
@@ -1874,22 +1909,32 @@
   // 11. 初期化
   // =========================================================================
   function init() {
-    // 起動時にカーテンを確実に解除
+    // 1. DOM要素を最新状態で確実に再取得
+    initElements();
+
+    // 2. 起動時にカーテンを確実に解除
     if (sceneCurtain) sceneCurtain.classList.remove('fade-out');
 
-    try { loadFavorites(); } catch (e) { console.warn('loadFavorites warning:', e); }
+    // 3. 最優先：時計の針と目盛りを即座に動かす
     try { initClockTicks(); } catch (e) { console.warn('initClockTicks warning:', e); }
     try { updateClock(); } catch (e) { console.warn('updateClock warning:', e); }
-    try { initEvents(); } catch (e) { console.warn('initEvents warning:', e); }
-    try { initNotificationSystem(); } catch (e) { console.warn('initNotificationSystem warning:', e); }
 
-    // 最初の地点を表示（immediate=trueでカーテン待機なく即時表示）＆タイマースタート
+    // 4. 操作ボタンのイベント登録
+    try { initEvents(); } catch (e) { console.warn('initEvents warning:', e); }
+
+    // 5. お気に入りの読み込み
+    try { loadFavorites(); } catch (e) { console.warn('loadFavorites warning:', e); }
+
+    // 6. 最初の地点を表示＆タイマースタート
     try {
       showNextLocation(true);
       startTimer();
     } catch (e) {
       console.error('初期地点表示エラー:', e);
     }
+
+    // 7. 通知連携機能（非同期・独立保護）
+    try { initNotificationSystem(); } catch (e) { console.warn('initNotificationSystem warning:', e); }
   }
 
   // DOMContentLoadedで起動
