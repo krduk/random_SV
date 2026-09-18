@@ -6,6 +6,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="RandomView">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#000000">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icon.svg">
@@ -1737,7 +1740,7 @@ html, body {
     <!-- ストリートビュー表示層（360度パノラマ ＆ デモ用クロスフェード画像） -->
     <div id="view-container" class="view-container" title="画面をタップすると地図が開きます">
       <div id="pano-container" class="pano-container"></div>
-      <img id="view-layer-a" class="view-layer active" alt="Street View" />
+      <img id="view-layer-a" class="view-layer active" src="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80" alt="Street View" />
       <img id="view-layer-b" class="view-layer" alt="Street View" />
     </div>
 
@@ -4308,6 +4311,9 @@ const WORLD_LOCATIONS = [
   // 11. 初期化
   // =========================================================================
   function init() {
+    // 起動時にカーテンを確実に解除
+    if (sceneCurtain) sceneCurtain.classList.remove('fade-out');
+
     try { loadFavorites(); } catch (e) { console.warn('loadFavorites warning:', e); }
     try { initClockTicks(); } catch (e) { console.warn('initClockTicks warning:', e); }
     try { updateClock(); } catch (e) { console.warn('updateClock warning:', e); }

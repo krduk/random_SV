@@ -1874,6 +1874,9 @@
   // 11. 初期化
   // =========================================================================
   function init() {
+    // 起動時にカーテンを確実に解除
+    if (sceneCurtain) sceneCurtain.classList.remove('fade-out');
+
     try { loadFavorites(); } catch (e) { console.warn('loadFavorites warning:', e); }
     try { initClockTicks(); } catch (e) { console.warn('initClockTicks warning:', e); }
     try { updateClock(); } catch (e) { console.warn('updateClock warning:', e); }
