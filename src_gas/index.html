@@ -2679,9 +2679,9 @@ const WORLD_LOCATIONS = [
     const minDeg = (minutes + seconds / 60) * 6;
     const secDeg = (seconds + millis / 1000) * 6;
 
-    if (hourHand) hourHand.setAttribute('transform', `rotate(${hourDeg} 50 50)`);
-    if (minuteHand) minuteHand.setAttribute('transform', `rotate(${minDeg} 50 50)`);
-    if (secondHand) secondHand.setAttribute('transform', `rotate(${secDeg} 50 50)`);
+    if (hourHand) hourHand.setAttribute('transform', 'rotate(' + hourDeg + ' 50 50)');
+    if (minuteHand) minuteHand.setAttribute('transform', 'rotate(' + minDeg + ' 50 50)');
+    if (secondHand) secondHand.setAttribute('transform', 'rotate(' + secDeg + ' 50 50)');
 
     requestAnimationFrame(updateClock);
   }
@@ -2725,7 +2725,7 @@ const WORLD_LOCATIONS = [
 
     const script = document.createElement('script');
     script.id = 'google-maps-api-script';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key.trim())}&callback=__initGoogleMaps`;
+    script.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key.trim()) + '&callback=__initGoogleMaps';
     script.async = true;
     script.defer = true;
     script.onerror = function () {
@@ -2918,7 +2918,7 @@ const WORLD_LOCATIONS = [
       const height = Math.min(window.screen.height || 640, 640);
       const heading = loc.heading !== undefined ? loc.heading : 0;
       const pitch = loc.pitch !== undefined ? loc.pitch : 0;
-      return `https://maps.googleapis.com/maps/api/streetview?size=${width}x${height}&scale=2&location=${loc.lat},${loc.lng}&heading=${heading}&pitch=${pitch}&fov=90&key=${apiKey.trim()}`;
+      return 'https://maps.googleapis.com/maps/api/streetview?size=' + width + 'x' + height + '&scale=2&location=' + loc.lat + ',' + loc.lng + '&heading=' + heading + '&pitch=' + pitch + '&fov=90&key=' + apiKey.trim();
     }
     return loc.demoImage;
   }
@@ -2978,9 +2978,9 @@ const WORLD_LOCATIONS = [
       currentLocation = loc;
 
       // 国名・住所テキストの反映
-      const flagPrefix = loc.flag ? `${loc.flag} ` : '';
-      if (locCountry) locCountry.textContent = `${flagPrefix}${loc.country}`;
-      if (locDetail) locDetail.textContent = loc.addressText || `${loc.region} ${loc.city}`;
+      const flagPrefix = loc.flag ? (loc.flag + ' ') : '';
+      if (locCountry) locCountry.textContent = flagPrefix + loc.country;
+      if (locDetail) locDetail.textContent = loc.addressText || (loc.region + ' ' + loc.city);
 
       // お気に入り状態のUI反映
       updateFavoriteButtonsState();
@@ -3026,9 +3026,9 @@ const WORLD_LOCATIONS = [
 
     if (immediate) {
       currentLocation = loc;
-      const flagPrefix = loc.flag ? `${loc.flag} ` : '';
-      if (locCountry) locCountry.textContent = `${flagPrefix}${loc.country}`;
-      if (locDetail) locDetail.textContent = loc.addressText || `${loc.region} ${loc.city}`;
+      const flagPrefix = loc.flag ? (loc.flag + ' ') : '';
+      if (locCountry) locCountry.textContent = flagPrefix + loc.country;
+      if (locDetail) locDetail.textContent = loc.addressText || (loc.region + ' ' + loc.city);
       updateFavoriteButtonsState();
       loadStaticDemoImage(loc);
       if (sceneCurtain) sceneCurtain.classList.remove('fade-out');
@@ -3049,7 +3049,7 @@ const WORLD_LOCATIONS = [
 
   function updateProgress() {
     const percent = ((intervalSeconds - remainingSeconds) / intervalSeconds) * 100;
-    progressFill.style.width = `${Math.min(percent, 100)}%`;
+    progressFill.style.width = Math.min(percent, 100) + '%';
   }
 
   function startTimer() {
@@ -3112,7 +3112,7 @@ const WORLD_LOCATIONS = [
       }
     }
     if (favModalCount) {
-      favModalCount.textContent = `${count}件`;
+      favModalCount.textContent = count + '件';
     }
   }
 
@@ -3166,7 +3166,7 @@ const WORLD_LOCATIONS = [
       const day = now.getDate();
       const hours = String(now.getHours()).padStart(2, '0');
       const minutes = String(now.getMinutes()).padStart(2, '0');
-      const dateStr = `${month}/${day} ${hours}:${minutes}`;
+      const dateStr = month + '/' + day + ' ' + hours + ':' + minutes;
 
       const favItem = {
         id: 'fav_' + Date.now(),
@@ -3224,15 +3224,14 @@ const WORLD_LOCATIONS = [
     updateFavoritesBadge();
 
     if (favoritesList.length === 0) {
-      favoritesListContainer.innerHTML = `
-        <div class="fav-empty">
-          <span class="fav-empty-icon">⭐️</span>
-          <p>保存した場所はまだありません。</p>
-          <p style="font-size: 11px; margin-top: 8px; color: rgba(255,255,255,0.45); line-height: 1.5;">
-            画面下の場所カードにある ♡ ボタンを押すと、<br>いつでもお気に入りの街角を保存できます。
-          </p>
-        </div>
-      `;
+      favoritesListContainer.innerHTML =
+        '<div class="fav-empty">' +
+        '  <span class="fav-empty-icon">⭐️</span>' +
+        '  <p>保存した場所はまだありません。</p>' +
+        '  <p style="font-size: 11px; margin-top: 8px; color: rgba(255,255,255,0.45); line-height: 1.5;">' +
+        '    画面下の場所カードにある ♡ ボタンを押すと、<br>いつでもお気に入りの街角を保存できます。' +
+        '  </p>' +
+        '</div>';
       if (btnClearAllFavorites) btnClearAllFavorites.style.display = 'none';
       return;
     }
@@ -3245,30 +3244,29 @@ const WORLD_LOCATIONS = [
 
       const lat = item.actualLat || item.lat;
       const lng = item.actualLng || item.lng;
-      const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+      const gmapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + lat + ',' + lng;
 
-      card.innerHTML = `
-        <div class="fav-item-main">
-          <div class="fav-item-place">
-            <span>${item.flag || '📍'}</span>
-            <span>${item.country}</span>
-          </div>
-          <div class="fav-item-sub">${item.addressText || item.city || ''}</div>
-          <div class="fav-item-date">${item.dateStr || ''} (${lat.toFixed(4)}°, ${lng.toFixed(4)}°)</div>
-        </div>
-        <div class="fav-item-actions">
-          <button class="fav-btn-view" data-index="${index}" title="この場所を360度で見る">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-            見る
-          </button>
-          <a class="fav-btn-gmaps" href="${gmapsUrl}" target="_blank" rel="noopener noreferrer" title="Googleマップで開く">
-            <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-          </a>
-          <button class="fav-btn-delete" data-index="${index}" title="削除">
-            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-          </button>
-        </div>
-      `;
+      card.innerHTML =
+        '<div class="fav-item-main">' +
+        '  <div class="fav-item-place">' +
+        '    <span>' + (item.flag || '📍') + '</span>' +
+        '    <span>' + (item.country || '') + '</span>' +
+        '  </div>' +
+        '  <div class="fav-item-sub">' + (item.addressText || item.city || '') + '</div>' +
+        '  <div class="fav-item-date">' + (item.dateStr || '') + ' (' + lat.toFixed(4) + '°, ' + lng.toFixed(4) + '°)</div>' +
+        '</div>' +
+        '<div class="fav-item-actions">' +
+        '  <button class="fav-btn-view" data-index="' + index + '" title="この場所を360度で見る">' +
+        '    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>' +
+        '    見る' +
+        '  </button>' +
+        '  <a class="fav-btn-gmaps" href="' + gmapsUrl + '" target="_blank" rel="noopener noreferrer" title="Googleマップで開く">' +
+        '    <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>' +
+        '  </a>' +
+        '  <button class="fav-btn-delete" data-index="' + index + '" title="削除">' +
+        '    <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>' +
+        '  </button>' +
+        '</div>';
 
       card.querySelector('.fav-btn-view').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -3314,12 +3312,12 @@ const WORLD_LOCATIONS = [
     const lat = currentLocation.actualLat !== undefined ? currentLocation.actualLat : currentLocation.lat;
     const lng = currentLocation.actualLng !== undefined ? currentLocation.actualLng : currentLocation.lng;
 
-    modalPlaceTitle.textContent = `${currentLocation.country}・${currentLocation.region}`;
+    modalPlaceTitle.textContent = currentLocation.country + '・' + currentLocation.region;
     modalPlaceSub.textContent = currentLocation.city;
-    modalCoords.textContent = `${lat.toFixed(5)}°, ${lng.toFixed(5)}°`;
+    modalCoords.textContent = lat.toFixed(5) + '°, ' + lng.toFixed(5) + '°';
 
     // Googleマップ直接リンク
-    const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    const gmapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + lat + ',' + lng;
     btnOpenGoogleMaps.href = gmapsUrl;
 
     mapModal.classList.add('open');
@@ -3330,12 +3328,11 @@ const WORLD_LOCATIONS = [
       // モダンなSVGマップピンアイコン
       const pinIcon = L.divIcon({
         className: 'custom-map-pin',
-        html: `
-          <svg width="34" height="42" viewBox="0 0 34 42" fill="none" style="filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));">
-            <path d="M17 0C7.61 0 0 7.61 0 17C0 29.75 17 42 17 42C17 42 34 29.75 34 17C34 7.61 26.39 0 17 0Z" fill="#EF4444"/>
-            <circle cx="17" cy="17" r="6.5" fill="#FFFFFF"/>
-          </svg>
-        `,
+        html:
+          '<svg width="34" height="42" viewBox="0 0 34 42" fill="none" style="filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));">' +
+          '  <path d="M17 0C7.61 0 0 7.61 0 17C0 29.75 17 42 17 42C17 42 34 29.75 34 17C34 7.61 26.39 0 17 0Z" fill="#EF4444"/>' +
+          '  <circle cx="17" cy="17" r="6.5" fill="#FFFFFF"/>' +
+          '</svg>',
         iconSize: [34, 42],
         iconAnchor: [17, 42],
         popupAnchor: [0, -40]
@@ -3365,8 +3362,8 @@ const WORLD_LOCATIONS = [
         }
       }
 
-      const flag = currentLocation.flag ? `${currentLocation.flag} ` : '';
-      currentMarker.bindPopup(`<b>${flag}${currentLocation.country}</b><br>${currentLocation.city}`).openPopup();
+      const flag = currentLocation.flag ? (currentLocation.flag + ' ') : '';
+      currentMarker.bindPopup('<b>' + flag + currentLocation.country + '</b><br>' + currentLocation.city).openPopup();
     }, 150);
 
     // 閉じたときのタイマー復元用リスナー
@@ -3500,8 +3497,8 @@ const WORLD_LOCATIONS = [
       targetY = Math.max(minY, Math.min(maxY, targetY));
 
       element.style.position = 'fixed';
-      element.style.left = `${targetX}px`;
-      element.style.top = `${targetY}px`;
+      element.style.left = targetX + 'px';
+      element.style.top = targetY + 'px';
       element.style.bottom = 'auto';
       element.style.right = 'auto';
       element.style.margin = '0';
@@ -3574,8 +3571,8 @@ const WORLD_LOCATIONS = [
         targetY = Math.max(minY, Math.min(maxY, targetY));
 
         element.style.position = 'fixed';
-        element.style.left = `${targetX}px`;
-        element.style.top = `${targetY}px`;
+        element.style.left = targetX + 'px';
+        element.style.top = targetY + 'px';
         element.style.bottom = 'auto';
         element.style.right = 'auto';
         element.style.margin = '0';
@@ -3777,7 +3774,7 @@ const WORLD_LOCATIONS = [
       mode: 'cors'
     })
       .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
       })
       .then(json => {
@@ -3837,7 +3834,7 @@ const WORLD_LOCATIONS = [
     }
 
     // モーダルの総合バッジ & タブバッジ
-    if (notifyModalTotalBadge) notifyModalTotalBadge.textContent = `${totalCount}件`;
+    if (notifyModalTotalBadge) notifyModalTotalBadge.textContent = totalCount + '件';
     if (tabBadgeAll) tabBadgeAll.textContent = totalCount;
     if (tabBadgeCw) tabBadgeCw.textContent = cwCount;
     if (tabBadgeGmail) tabBadgeGmail.textContent = gmailCount;
@@ -3847,7 +3844,7 @@ const WORLD_LOCATIONS = [
       if (lastNotifyFetchTime) {
         const timeStr = lastNotifyFetchTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const sourceLabel = notifySource === 'demo' ? ' (デモ)' : '';
-        notifyLastUpdated.textContent = `最終確認: ${timeStr}${sourceLabel}`;
+        notifyLastUpdated.textContent = '最終確認: ' + timeStr + sourceLabel;
       } else {
         notifyLastUpdated.textContent = '未取得';
       }
@@ -3929,7 +3926,7 @@ const WORLD_LOCATIONS = [
     if (!currentTickerItems || currentTickerItems.length === 0) return;
     const item = currentTickerItems[index];
     if (!item) return;
-    notifyTickerText.textContent = `${item.prefix} ${item.sender}: ${item.text}`;
+    notifyTickerText.textContent = item.prefix + ' ' + item.sender + ': ' + item.text;
   }
 
   /**
@@ -3969,13 +3966,12 @@ const WORLD_LOCATIONS = [
     }
 
     if (filteredItems.length === 0) {
-      notifyList.innerHTML = `
-        <div class="notify-empty-state">
-          <div class="notify-empty-icon">🌿</div>
-          <div class="notify-empty-text">未読はありません</div>
-          <div class="notify-empty-sub">現在確認すべき未読メッセージやメールはありません。風景をゆっくりお楽しみください。</div>
-        </div>
-      `;
+      notifyList.innerHTML =
+        '<div class="notify-empty-state">' +
+        '  <div class="notify-empty-icon">🌿</div>' +
+        '  <div class="notify-empty-text">未読はありません</div>' +
+        '  <div class="notify-empty-sub">現在確認すべき未読メッセージやメールはありません。風景をゆっくりお楽しみください。</div>' +
+        '</div>';
       return;
     }
 
@@ -3985,47 +3981,47 @@ const WORLD_LOCATIONS = [
 
       if (item.service === 'chatwork') {
         const timeDisplay = item.date_formatted || (item.date ? new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
-        const chatworkLink = item.room_id ? `https://www.chatwork.com/#!rid${item.room_id}` : 'https://www.chatwork.com/';
+        const chatworkLink = item.room_id ? ('https://www.chatwork.com/#!rid' + item.room_id) : 'https://www.chatwork.com/';
+        const roomHtml = item.room_name ? ('<div class="notify-item-room">📁 ' + escapeHtml(item.room_name) + '</div>') : '';
 
-        card.innerHTML = `
-          <div class="notify-item-header">
-            <div class="notify-item-sender-wrap">
-              <span class="notify-service-tag tag-chatwork">💬 Chatwork</span>
-              <span class="notify-item-sender">${escapeHtml(item.sender_name || 'Unknown')}</span>
-            </div>
-            <span class="notify-item-time">${escapeHtml(timeDisplay)}</span>
-          </div>
-          ${item.room_name ? `<div class="notify-item-room">📁 ${escapeHtml(item.room_name)}</div>` : ''}
-          <div class="notify-item-body">${escapeHtml(item.body || '(本文なし)')}</div>
-          <div class="notify-item-actions">
-            <a href="${chatworkLink}" target="_blank" rel="noopener noreferrer" class="notify-open-btn">
-              Chatworkで開く
-              <svg viewBox="0 0 24 24"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3m-2 16H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7z"/></svg>
-            </a>
-          </div>
-        `;
+        card.innerHTML =
+          '<div class="notify-item-header">' +
+          '  <div class="notify-item-sender-wrap">' +
+          '    <span class="notify-service-tag tag-chatwork">💬 Chatwork</span>' +
+          '    <span class="notify-item-sender">' + escapeHtml(item.sender_name || 'Unknown') + '</span>' +
+          '  </div>' +
+          '  <span class="notify-item-time">' + escapeHtml(timeDisplay) + '</span>' +
+          '</div>' +
+          roomHtml +
+          '<div class="notify-item-body">' + escapeHtml(item.body || '(本文なし)') + '</div>' +
+          '<div class="notify-item-actions">' +
+          '  <a href="' + chatworkLink + '" target="_blank" rel="noopener noreferrer" class="notify-open-btn">' +
+          '    Chatworkで開く' +
+          '    <svg viewBox="0 0 24 24"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3m-2 16H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7z"/></svg>' +
+          '  </a>' +
+          '</div>';
       } else {
         // Gmail
         const timeDisplay = item.date_formatted || (item.date ? new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
         const gmailLink = 'https://mail.google.com/';
+        const snippetHtml = item.snippet ? ('<div class="notify-item-body">' + escapeHtml(item.snippet) + '</div>') : '';
 
-        card.innerHTML = `
-          <div class="notify-item-header">
-            <div class="notify-item-sender-wrap">
-              <span class="notify-service-tag tag-gmail">✉️ Gmail</span>
-              <span class="notify-item-sender">${escapeHtml(item.from || 'Unknown')}</span>
-            </div>
-            <span class="notify-item-time">${escapeHtml(timeDisplay)}</span>
-          </div>
-          <div class="notify-item-subject">${escapeHtml(item.subject || '(件名なし)')}</div>
-          ${item.snippet ? `<div class="notify-item-body">${escapeHtml(item.snippet)}</div>` : ''}
-          <div class="notify-item-actions">
-            <a href="${gmailLink}" target="_blank" rel="noopener noreferrer" class="notify-open-btn">
-              Gmailで開く
-              <svg viewBox="0 0 24 24"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3m-2 16H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7z"/></svg>
-            </a>
-          </div>
-        `;
+        card.innerHTML =
+          '<div class="notify-item-header">' +
+          '  <div class="notify-item-sender-wrap">' +
+          '    <span class="notify-service-tag tag-gmail">✉️ Gmail</span>' +
+          '    <span class="notify-item-sender">' + escapeHtml(item.from || 'Unknown') + '</span>' +
+          '  </div>' +
+          '  <span class="notify-item-time">' + escapeHtml(timeDisplay) + '</span>' +
+          '</div>' +
+          '<div class="notify-item-subject">' + escapeHtml(item.subject || '(件名なし)') + '</div>' +
+          snippetHtml +
+          '<div class="notify-item-actions">' +
+          '  <a href="' + gmailLink + '" target="_blank" rel="noopener noreferrer" class="notify-open-btn">' +
+          '    Gmailで開く' +
+          '    <svg viewBox="0 0 24 24"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3m-2 16H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7z"/></svg>' +
+          '  </a>' +
+          '</div>';
       }
 
       notifyList.appendChild(card);
@@ -4289,13 +4285,13 @@ const WORLD_LOCATIONS = [
 
         fetch(url, { method: 'GET', mode: 'cors' })
           .then(res => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            if (!res.ok) throw new Error('HTTP ' + res.status);
             return res.json();
           })
           .then(data => {
             const cwCount = (data.chatwork && data.chatwork.unread_count) || 0;
             const gmCount = (data.gmail && data.gmail.unread_count) || 0;
-            showToast(`✅ 接続成功！ (Chatwork: ${cwCount}件, Gmail: ${gmCount}件)`);
+            showToast('✅ 接続成功！ (Chatwork: ' + cwCount + '件, Gmail: ' + gmCount + '件)');
           })
           .catch(err => {
             console.error('GAS接続テスト失敗:', err);

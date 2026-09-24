@@ -42,7 +42,7 @@ if (!fs.existsSync(SRC_GAS_DIR)) {
 // CSSの置換
 const cssTagRegex = /<link\s+rel=["']stylesheet["']\s+href=["']style\.css[^"']*["']\s*\/?>/i;
 if (cssTagRegex.test(htmlContent)) {
-  htmlContent = htmlContent.replace(cssTagRegex, `<style>\n${cssContent}\n</style>`);
+  htmlContent = htmlContent.replace(cssTagRegex, () => '<style>\n' + cssContent + '\n</style>');
   console.log('  ✅ style.css をインライン埋め込みしました');
 } else {
   console.warn('  ⚠️ style.css の link タグが見つかりませんでした');
@@ -51,7 +51,7 @@ if (cssTagRegex.test(htmlContent)) {
 // locations.js の置換
 const locTagRegex = /<script\s+src=["']locations\.js[^"']*["']><\/script>/i;
 if (locTagRegex.test(htmlContent)) {
-  htmlContent = htmlContent.replace(locTagRegex, `<script>\n${locContent}\n</script>`);
+  htmlContent = htmlContent.replace(locTagRegex, () => '<script>\n' + locContent + '\n</script>');
   console.log('  ✅ locations.js をインライン埋め込みしました');
 } else {
   console.warn('  ⚠️ locations.js の script タグが見つかりませんでした');
@@ -60,10 +60,24 @@ if (locTagRegex.test(htmlContent)) {
 // app.js の置換
 const appTagRegex = /<script\s+src=["']app\.js[^"']*["']><\/script>/i;
 if (appTagRegex.test(htmlContent)) {
-  htmlContent = htmlContent.replace(appTagRegex, `<script>\n${appContent}\n</script>`);
+  htmlContent = htmlContent.replace(appTagRegex, () => '<script>\n' + appContent + '\n</script>');
   console.log('  ✅ app.js をインライン埋め込みしました');
 } else {
   console.warn('  ⚠️ app.js の script タグが見つかりませんでした');
+}
+
+// 検証: GAS HtmlService で構文エラーを引き起こすバッククォートがスクリプト内に含まれていないかチェック
+const scriptMatches = htmlContent.match(/<script[\s\S]*?<\/script>/gi) || [];
+let hasBacktickInScript = false;
+scriptMatches.forEach(tag => {
+  if (tag.includes('`')) {
+    hasBacktickInScript = true;
+  }
+});
+if (hasBacktickInScript) {
+  console.warn('  ⚠️ 警告: <script> 内にバッククォート (`) が検出されました。GAS HtmlService で構文エラーになる可能性があります。');
+} else {
+  console.log('  ✅ <script> 内にバッククォート (`) は含まれていません（GAS互換性OK）');
 }
 
 // 4. 出力ファイル保存
