@@ -36,7 +36,7 @@
 // ============================================================
 const CONFIG = {
   GMAIL_MAX_THREADS: 10,        // Gmailから取得する最大スレッド数
-  GMAIL_QUERY: 'is:unread in:inbox', // Gmail検索クエリ（受信トレイの未読）
+  GMAIL_QUERY: 'is:unread in:inbox category:primary', // Gmail検索クエリ（受信トレイの「メイン」タブの未読のみ。新着やフォーラム等を除外）
   CHATWORK_MAX_ROOMS: 15,      // 未読チェックする最大ルーム数
   CHATWORK_MAX_MSGS_PER_ROOM: 5 // 1ルームあたりの最大未読取得数
 };
