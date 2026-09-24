@@ -59,8 +59,20 @@
   // 通知機能の状態
   let notifyEnabled = safeStorage.getItem(STORAGE_KEY_NOTIFY_ENABLED) !== 'false';
   let notifyTickerEnabled = safeStorage.getItem(STORAGE_KEY_NOTIFY_TICKER) !== 'false';
-  let notifySource = safeStorage.getItem(STORAGE_KEY_NOTIFY_SOURCE) || 'demo'; // 'demo' | 'gas'
-  const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbw8Ogsccbj67RVnDV-f3aZ0UONdgH_-9bVzS8cupdmjvJXFTM9bL13u4uWDYbqCHu4wiQ/exec';
+  const isGasEnvironment = Boolean(
+    (typeof window !== 'undefined' && window.google && window.google.script && window.google.script.run) ||
+    (typeof location !== 'undefined' && (
+      location.hostname.indexOf('script.google.com') !== -1 ||
+      location.hostname.indexOf('googleusercontent.com') !== -1
+    ))
+  );
+  let savedNotifySource = safeStorage.getItem(STORAGE_KEY_NOTIFY_SOURCE);
+  // GAS Webアプリ環境内では、明示的にデモが指定されていない限り実データ連携 ('gas') を優先
+  let notifySource = savedNotifySource || (isGasEnvironment ? 'gas' : 'demo');
+  if (isGasEnvironment && (!savedNotifySource || savedNotifySource === 'demo')) {
+    notifySource = 'gas';
+  }
+  const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyDHN6etzHo2kKRigftSpFpP7ZEw4MA1YpA93LRdM3YwBEXxDZowEwbOpmKW_SknDOFxw/exec';
   let notifyGasUrl = safeStorage.getItem(STORAGE_KEY_NOTIFY_GAS_URL) || DEFAULT_GAS_URL;
   let notifyIntervalSeconds = parseInt(safeStorage.getItem(STORAGE_KEY_NOTIFY_INTERVAL) || '180', 10);
 
@@ -1274,8 +1286,8 @@
     if (notifySyncSpinner) notifySyncSpinner.style.display = 'inline-block';
     if (btnRefreshNotify) btnRefreshNotify.classList.add('rotating');
 
-    if (notifySource === 'demo' || !notifyGasUrl) {
-      // デモモード（またはURL未設定時のフォールバック）
+    // 1. デモモードが明示的に指定されている場合
+    if (notifySource === 'demo') {
       setTimeout(() => {
         notifyData = JSON.parse(JSON.stringify(DEMO_NOTIFY_DATA));
         lastNotifyFetchTime = new Date();
@@ -1284,13 +1296,13 @@
         if (btnRefreshNotify) btnRefreshNotify.classList.remove('rotating');
 
         if (isManual) {
-          showToast(notifySource === 'demo' ? 'デモ用通知データを更新しました' : 'GAS URL未設定のためデモを表示中');
+          showToast('デモ用通知データを更新しました');
         }
       }, isManual ? 400 : 100);
       return;
     }
 
-    // A. GASのWebアプリ（HTML Service）として実行されている場合は直接サーバー関数を呼出
+    // 2. GASのWebアプリ（HTML Service）として実行されている場合は直接サーバー関数を呼出
     if (window.google && window.google.script && window.google.script.run) {
       google.script.run
         .withSuccessHandler((json) => {
@@ -1311,7 +1323,7 @@
         })
         .withFailureHandler((err) => {
           console.warn('google.script.run 失敗:', err);
-          if (isManual) showToast('GAS通信に失敗しました');
+          showToast('GAS通信に失敗しました: ' + (err.message || err));
           if (notifySyncSpinner) notifySyncSpinner.style.display = 'none';
           if (btnRefreshNotify) btnRefreshNotify.classList.remove('rotating');
         })
@@ -1319,8 +1331,19 @@
       return;
     }
 
-    // B. 通常のWeb環境・ローカル環境では GAS Web App 経由でデータ取得
-    const requestUrl = notifyGasUrl.trim();
+    // 3. 通常のWeb環境・ローカル環境では GAS Web App URL 経由でデータ取得
+    const requestUrl = (notifyGasUrl || '').trim();
+    if (!requestUrl) {
+      setTimeout(() => {
+        notifyData = JSON.parse(JSON.stringify(DEMO_NOTIFY_DATA));
+        lastNotifyFetchTime = new Date();
+        updateNotificationUI();
+        if (notifySyncSpinner) notifySyncSpinner.style.display = 'none';
+        if (btnRefreshNotify) btnRefreshNotify.classList.remove('rotating');
+        if (isManual) showToast('GAS URL未設定のためデモを表示中');
+      }, isManual ? 400 : 100);
+      return;
+    }
     fetch(requestUrl, {
       method: 'GET',
       mode: 'cors'
@@ -1827,6 +1850,27 @@
 
     if (btnTestGas && inputNotifyGasUrl) {
       btnTestGas.addEventListener('click', () => {
+        // GAS Webアプリ内なら直接google.script.runでテスト
+        if (window.google && window.google.script && window.google.script.run) {
+          btnTestGas.disabled = true;
+          btnTestGas.textContent = '接続中...';
+          google.script.run
+            .withSuccessHandler((data) => {
+              btnTestGas.disabled = false;
+              btnTestGas.textContent = '🔗 接続テスト';
+              const cwCount = (data && data.chatwork && data.chatwork.unread_count) || 0;
+              const gmCount = (data && data.gmail && data.gmail.unread_count) || 0;
+              showToast('✅ GAS直接接続成功！ (Chatwork: ' + cwCount + '件, Gmail: ' + gmCount + '件)');
+            })
+            .withFailureHandler((err) => {
+              btnTestGas.disabled = false;
+              btnTestGas.textContent = '🔗 接続テスト';
+              showToast('❌ 接続エラー: ' + (err.message || err));
+            })
+            .getNotificationDataFromGAS();
+          return;
+        }
+
         const url = inputNotifyGasUrl.value.trim();
         if (!url) {
           showToast('GAS Web App URL を入力してください');
